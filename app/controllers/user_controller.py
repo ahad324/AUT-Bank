@@ -8,10 +8,8 @@ from datetime import datetime
 
 router = APIRouter()
 
-
 # ✅ Initialize bcrypt context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 @router.post("/register", response_model=UserResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
