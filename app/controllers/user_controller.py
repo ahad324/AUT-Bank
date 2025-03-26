@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.schemas.user_schema import UserCreate, UserResponse
+from app.schemas.user_schema import UserCreate, UserLogin, UserResponse
 from app.models.user import User
 from app.core.database import get_db
 from passlib.context import CryptContext
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -31,16 +31,21 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     # ✅ Hash password before saving
     hashed_password = pwd_context.hash(user.Password)
 
-    # ✅ Convert date to datetime
-    date_of_birth = datetime.combine(user.DateOfBirth, datetime.min.time())
-
     new_user = User(
         Username=user.Username,
+        FirstName=user.FirstName,
+        LastName=user.LastName,
+        StreetAddress=user.StreetAddress,
+        City=user.City,
+        State=user.State,
+        Country=user.Country,
+        PostalCode=user.PostalCode,
+        PhoneNumber=user.PhoneNumber,
         CNIC=user.CNIC,
         Email=user.Email,
         PasswordHash=hashed_password,
         AccountType=user.AccountType,
-        DateOfBirth=date_of_birth
+        DateOfBirth=user.DateOfBirth
     )
     
     try:
@@ -54,10 +59,27 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @router.post("/login")
-def login_user(email: str, password: str, db: Session = Depends(get_db)):
-    # Find user by email
-    user = db.query(User).filter(User.Email == email).first()
-    if not user or not pwd_context.verify(password, user.PasswordHash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
+    # Check if login_id is email or username
+    if "@" in credentials.login_id:
+        # Treat as email
+        user = db.query(User).filter(User.Email == credentials.login_id).first()
+    else:
+        # Treat as username
+        user = db.query(User).filter(User.Username == credentials.login_id).first()
+    
+    if not user or not pwd_context.verify(credentials.Password, user.PasswordHash):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid login credentials"
+        )
+    user.LastLogin = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
 
-    return {"message": "Login successful", "user_id": user.UserID, "username": user.Username}
+    return {
+        "message": "Login successful",
+        "user_id": user.UserID,
+        "username": user.Username,
+        "email": user.Email,
+        "last_login": user.LastLogin.isoformat() if user.LastLogin else None
+    }

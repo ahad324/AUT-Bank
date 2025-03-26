@@ -1,6 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, DECIMAL
-from sqlalchemy.sql import func
-from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, DECIMAL, Date
+from sqlalchemy.sql import func, text
 from app.core.database import Base
 
 class User(Base):
@@ -8,11 +7,20 @@ class User(Base):
 
     UserID = Column(Integer, primary_key=True, index=True)
     Username = Column(String(50), unique=True, nullable=False)
+    FirstName = Column(String(50), nullable=False, server_default='')
+    LastName = Column(String(50), nullable=False, server_default='')
+    StreetAddress = Column(String(255), nullable=True)
+    City = Column(String(50), nullable=True)
+    State = Column(String(50), nullable=True)
+    Country = Column(String(50), nullable=True)
+    PostalCode = Column(String(20), nullable=True)
+    PhoneNumber = Column(String(20), nullable=True)
     CNIC = Column(String(15), unique=True, nullable=False)
     Email = Column(String(100), unique=True, nullable=False)
     PasswordHash = Column(String(255), nullable=False)
     AccountType = Column(String(10), nullable=False)
-    Balance = Column(DECIMAL(18, 2), default=0)
-    BiometricEnabled = Column(Boolean, default=False)
-    DateOfBirth = Column(DateTime, nullable=False)  # ✅ Fix: Use DateTime instead of Date
-    CreatedAt = Column(DateTime, default=func.now())
+    Balance = Column(DECIMAL(19,4), server_default=text('0.0000'))
+    BiometricEnabled = Column(Boolean, server_default=text('0'))
+    DateOfBirth = Column(Date, nullable=False)
+    CreatedAt = Column(DateTime, server_default=func.now())
+    LastLogin = Column(DateTime, nullable=True)
