@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import users
+from app.routes import users
 
 app = FastAPI(title="Secure Banking System")
 

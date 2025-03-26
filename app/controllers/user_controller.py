@@ -56,7 +56,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @router.post("/login")
-def login(email: str, password: str, db: Session = Depends(get_db)):
+def login_user(email: str, password: str, db: Session = Depends(get_db)):
     # Find user by email
     user = db.query(User).filter(User.Email == email).first()
     if not user or not pwd_context.verify(password, user.PasswordHash):  # ✅ Fix Password Check
