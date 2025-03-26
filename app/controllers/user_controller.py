@@ -59,7 +59,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 def login_user(email: str, password: str, db: Session = Depends(get_db)):
     # Find user by email
     user = db.query(User).filter(User.Email == email).first()
-    if not user or not pwd_context.verify(password, user.PasswordHash):  # ✅ Fix Password Check
+    if not user or not pwd_context.verify(password, user.PasswordHash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return {"message": "Login successful", "user_id": user.UserID, "username": user.Username}

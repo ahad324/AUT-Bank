@@ -10,7 +10,7 @@ app.include_router(users.router, prefix="/users", tags=["Users"])
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to Secure Banking API"}
+    return {"message": "Welcome to AUT Bank API. For documentation type /docs or /redoc in the url."}
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))  # Railway provides PORT
