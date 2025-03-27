@@ -1,29 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
-from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminResponse
-from app.models.admin import Admin
-from app.core.database import get_db
 from datetime import datetime, timezone
+# Schemas
+from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminResponseData
+# Models
+from app.models.admin import Admin
+# Core
+from app.core.schemas import BaseResponse
+from app.core.database import get_db
+from app.core.auth import create_access_token, create_refresh_token
+from app.core.responses import success_response, error_response
 
 router = APIRouter(tags=["Admin Authentication"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@router.post("/register", response_model=AdminResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=BaseResponse)
 def register_admin(admin: AdminCreate, db: Session = Depends(get_db)):
-    # Check if admin already exists
     existing_admin = db.query(Admin).filter(
         (Admin.Email == admin.Email) | 
         (Admin.Username == admin.Username)
     ).first()
     
     if existing_admin:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Admin with this email or username already exists"
+        return error_response(
+            message="Admin with this email or username already exists",
+            status_code=status.HTTP_400_BAD_REQUEST
         )
 
-    # Create new admin
     new_admin = Admin(
         Username=admin.Username,
         Email=admin.Email,
@@ -35,31 +39,42 @@ def register_admin(admin: AdminCreate, db: Session = Depends(get_db)):
         db.add(new_admin)
         db.commit()
         db.refresh(new_admin)
-        return new_admin
+        return success_response(
+            message="Admin registered successfully",
+            data=AdminResponseData.model_validate(new_admin).model_dump(),
+            status_code=status.HTTP_201_CREATED
+        )
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+        return error_response(
+            message="Registration failed",
+            details={"error": str(e)},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@router.post("/login")
+@router.post("/login", response_model=BaseResponse)
 def login_admin(admin: AdminLogin, db: Session = Depends(get_db)):
-    # Find admin by email
     admin_db = db.query(Admin).filter(Admin.Email == admin.Email).first()
     if not admin_db or not pwd_context.verify(admin.Password, admin_db.PasswordHash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+        return error_response(
+            message="Invalid email or password",
+            status_code=status.HTTP_401_UNAUTHORIZED
         )
     
     admin_db.LastLogin = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
 
-    return {
-        "message": "Login successful",
-        "admin_id": admin_db.AdminID,
-        "username": admin_db.Username,
-        "role": admin_db.Role,
-        "last_login": admin_db.LastLogin.isoformat() if admin_db.LastLogin else None
-    }
+    access_token = create_access_token(data={"sub": str(admin_db.AdminID), "role": "Admin"})
+    refresh_token = create_refresh_token(data={"sub": str(admin_db.AdminID), "role": "Admin"})
+    return success_response(
+        message="Login successful",
+        data={
+            "AdminID": admin_db.AdminID,
+            "Username": admin_db.Username,
+            "Role": admin_db.Role,
+            "last_login": admin_db.LastLogin.isoformat() if admin_db.LastLogin else None,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+    )

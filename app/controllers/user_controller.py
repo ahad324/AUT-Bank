@@ -1,85 +1,78 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.schemas.user_schema import UserCreate, UserLogin, UserResponse
+from app.core.schemas import BaseResponse
+from app.schemas.user_schema import UserCreate, UserLogin, UserResponseData, LoginResponseData
 from app.models.user import User
 from app.core.database import get_db
+from app.core.responses import success_response, error_response
+from app.core.auth import create_access_token, create_refresh_token
 from passlib.context import CryptContext
 from datetime import datetime, timezone
 
 router = APIRouter()
-
-# ✅ Initialize bcrypt context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=BaseResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    # ✅ Check if Email, CNIC, or Username already exists
-    existing_user = (
-        db.query(User)
-        .filter((User.Email == user.Email) | (User.CNIC == user.CNIC) | (User.Username == user.Username))
-        .first()
-    )
+    existing_user = db.query(User).filter(
+        (User.Email == user.Email) | 
+        (User.CNIC == user.CNIC) | 
+        (User.Username == user.Username)
+    ).first()
 
     if existing_user:
-        if existing_user.Email == user.Email:
-            raise HTTPException(status_code=400, detail="Email already registered. Please use a different email.")
-        if existing_user.CNIC == user.CNIC:
-            raise HTTPException(status_code=400, detail="CNIC already registered. Please use a different CNIC.")
-        if existing_user.Username == user.Username:
-            raise HTTPException(status_code=400, detail="Username already taken. Please choose another username.")
+        field = "email" if existing_user.Email == user.Email else "CNIC" if existing_user.CNIC == user.CNIC else "username"
+        return error_response(
+            message=f"{field.capitalize()} already registered",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
 
-    # ✅ Hash password before saving
-    hashed_password = pwd_context.hash(user.Password)
-
-    new_user = User(
-        Username=user.Username,
-        FirstName=user.FirstName,
-        LastName=user.LastName,
-        StreetAddress=user.StreetAddress,
-        City=user.City,
-        State=user.State,
-        Country=user.Country,
-        PostalCode=user.PostalCode,
-        PhoneNumber=user.PhoneNumber,
-        CNIC=user.CNIC,
-        Email=user.Email,
-        PasswordHash=hashed_password,
-        AccountType=user.AccountType,
-        DateOfBirth=user.DateOfBirth
-    )
-    
     try:
+        new_user = User(**user.model_dump(exclude={"Password"}))
+        new_user.PasswordHash = pwd_context.hash(user.Password)
+        
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+        
+        return success_response(
+            message="User registered successfully",
+            data=UserResponseData.model_validate(new_user).model_dump(),
+            status_code=status.HTTP_201_CREATED
+        )
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        return error_response(
+            message="Registration failed",
+            details={"error": str(e)},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
-    return new_user
-
-@router.post("/login")
+@router.post("/login", response_model=BaseResponse)
+@router.post("/login", response_model=BaseResponse)
 def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
-    # Check if login_id is email or username
-    if "@" in credentials.login_id:
-        # Treat as email
-        user = db.query(User).filter(User.Email == credentials.login_id).first()
-    else:
-        # Treat as username
-        user = db.query(User).filter(User.Username == credentials.login_id).first()
+    user = db.query(User).filter(
+        (User.Email == credentials.login_id) | 
+        (User.Username == credentials.login_id)
+    ).first()
     
     if not user or not pwd_context.verify(credentials.Password, user.PasswordHash):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid login credentials"
+        return error_response(
+            message="Invalid credentials",
+            status_code=status.HTTP_401_UNAUTHORIZED
         )
-    user.LastLogin = datetime.now(timezone.utc).replace(tzinfo=None)
+    
+    user.LastLogin = datetime.now(timezone.utc)
     db.commit()
-
-    return {
-        "message": "Login successful",
-        "user_id": user.UserID,
-        "username": user.Username,
-        "email": user.Email,
-        "last_login": user.LastLogin.isoformat() if user.LastLogin else None
-    }
+    
+    access_token = create_access_token(data={"sub": str(user.UserID), "role": "User"})
+    refresh_token = create_refresh_token(data={"sub": str(user.UserID), "role": "User"})
+    return success_response(
+        message="Login successful",
+        data={
+            **LoginResponseData.model_validate(user).model_dump(),
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+    )

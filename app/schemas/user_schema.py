@@ -29,7 +29,7 @@ class UserCreate(BaseModel):
         if not (v[5] == '-' and v[13] == '-' and len(v) == 15):
             raise ValueError("CNIC must be in format XXXXX-XXXXXXX-X")
         return v
-
+    
 class UserLogin(BaseModel):
     login_id: str  # Can be either email or username
     Password: str
@@ -39,15 +39,7 @@ class UserLogin(BaseModel):
         if not v:
             raise ValueError("Login ID cannot be empty")
         return v
-    
-class UserResponse(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={
-            date: lambda v: v.strftime('%Y-%m-%d')  # Format as YYYY-MM-DD
-        }
-    )
-    
+class UserResponseData(BaseModel):
     UserID: int
     Username: str
     FirstName: str
@@ -58,3 +50,12 @@ class UserResponse(BaseModel):
     DateOfBirth: date
     CreatedAt: datetime
     LastLogin: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class LoginResponseData(BaseModel):
+    UserID: int
+    Username: str
+    Email: EmailStr
+    AccountType: str
+    last_login: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)

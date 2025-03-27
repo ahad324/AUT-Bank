@@ -4,20 +4,21 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .core.exceptions import CustomHTTPException
-from .core.responses import StandardResponse
+from .core.schemas import BaseResponse
 from .routes import admins, users
 
 app = FastAPI(
     title="AUT Banking System",
     version="1.0.0",
+    default_response_model=BaseResponse,
     description="Official API documentation for AUT Bank's backend services",
     responses={
-        400: {"model": StandardResponse},
-        401: {"model": StandardResponse},
-        403: {"model": StandardResponse},
-        404: {"model": StandardResponse},
-        422: {"model": StandardResponse},
-        500: {"model": StandardResponse}
+        400: {"model": BaseResponse},
+        401: {"model": BaseResponse},
+        403: {"model": BaseResponse},
+        404: {"model": BaseResponse},
+        422: {"model": BaseResponse},
+        500: {"model": BaseResponse}
     }
 )
 
@@ -30,7 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API routes
+#<========== API routes ==========>
 # User Routes
 app.include_router(
     users.router,
@@ -38,7 +39,6 @@ app.include_router(
     tags=["User Management"],
     responses={404: {"description": "Not found"}}
 )
-
 # admin routes
 app.include_router(
     admins.router,
@@ -59,7 +59,7 @@ async def custom_http_exception_handler(request: Request, exc: CustomHTTPExcepti
 @app.get(
     "/health",
     tags=["System"],
-    response_model=StandardResponse,
+    response_model=BaseResponse,
     summary="System health check"
 )
 async def health_check():
@@ -72,7 +72,7 @@ async def health_check():
 # Root endpoint with standardized response
 @app.get(
     "/",
-    response_model=StandardResponse,
+    response_model=BaseResponse,
     tags=["System"],
     summary="API Welcome"
 )
