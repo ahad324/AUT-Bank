@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.transaction_schema import DepositRequest, TransactionCreate, TransactionResponse
+from app.schemas.transaction_schema import TransactionCreate, TransactionResponse
 from app.core.responses import success_response
 from app.core.exceptions import CustomHTTPException
 from fastapi import status
@@ -79,53 +79,7 @@ def create_transaction(sender_id: int, transaction: TransactionCreate, db: Sessi
             message=f"{transaction.TransactionType} failed",
             details={"error": str(e)}
         )
-
-def deposit(user_id: int, deposit: DepositRequest, db: Session):
-    # Verify user exists
-    user = db.query(User).filter(User.UserID == user_id).first()
-    if not user:
-        raise CustomHTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            message="User not found",
-            details={}
-        )
-
-    # Convert deposit.Amount to Decimal
-    amount = Decimal(str(deposit.Amount))
-    
-    # Create a deposit transaction
-    deposit_transaction = Transaction(
-        SenderID=None,  # No sender for a deposit
-        ReceiverID=user_id,  # The user receiving the deposit
-        Amount=amount,
-        TransactionType="Deposit",
-        ReferenceNumber=str(uuid.uuid4()),
-        Status="Pending",
-        Description=deposit.Description
-    )
-
-    try:
-        # Update user's balance
-        user.Balance += amount
-        deposit_transaction.Status = "Completed"
-        db.add(deposit_transaction)
-        db.commit()
-        db.refresh(deposit_transaction)
-
-        return success_response(
-            message="Deposit completed successfully",
-            data=TransactionResponse.model_validate(deposit_transaction).model_dump()
-        )
-    except Exception as e:
-        db.rollback()
-        deposit_transaction.Status = "Failed"
-        db.commit()
-        raise CustomHTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message="Deposit failed",
-            details={"error": str(e)}
-        )
-        
+   
 def get_all_transactions(page: int, per_page: int, db: Session):
     offset = (page - 1) * per_page
     transactions = db.query(Transaction).order_by(Transaction.Timestamp.desc()).offset(offset).limit(per_page).all()

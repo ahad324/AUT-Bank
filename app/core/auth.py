@@ -8,6 +8,7 @@ from app.models.admin import Admin
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from app.core.exceptions import CustomHTTPException
+from app.core.responses import success_response, error_response
 import os
 import uuid
 
@@ -66,3 +67,39 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends
             details={}
         )
     return user
+
+def refresh_token(refresh_token: str, db: Session, model, role: str, id_field: str):
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        entity_id: int = int(payload.get("sub"))
+        token_role: str = payload.get("role")
+        if entity_id is None or token_role != role:
+            raise CustomHTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                message="Invalid refresh token",
+                details={}
+            )
+        
+        entity = db.query(model).filter(getattr(model, id_field) == entity_id).first()
+        if not entity:
+            raise CustomHTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                message=f"{role} not found",
+                details={}
+            )
+        
+        new_access_token = create_access_token(data={"sub": str(entity_id), "role": role})
+        new_refresh_token = create_refresh_token(data={"sub": str(entity_id), "role": role})
+        return success_response(
+            message="Token refreshed successfully",
+            data={
+                "access_token": new_access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "bearer"
+            }
+        )
+    except JWTError:
+        return error_response(
+            message="Invalid or expired refresh token",
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )

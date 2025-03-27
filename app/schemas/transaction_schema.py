@@ -19,7 +19,3 @@ class TransactionResponse(BaseModel):
     Description: Optional[str] = None
     Timestamp: datetime
     model_config = ConfigDict(from_attributes=True)
-
-class DepositRequest(BaseModel):
-    Amount: PositiveFloat
-    Description: Optional[constr(max_length=255)] = None  # type: ignore

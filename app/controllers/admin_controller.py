@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timezone
@@ -7,16 +7,13 @@ from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminResponseData
 # Models
 from app.models.admin import Admin
 # Core
-from app.core.schemas import BaseResponse
-from app.core.database import get_db
 from app.core.auth import create_access_token, create_refresh_token
 from app.core.responses import success_response, error_response
 
 router = APIRouter(tags=["Admin Authentication"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@router.post("/register", response_model=BaseResponse)
-def register_admin(admin: AdminCreate, db: Session = Depends(get_db)):
+def register_admin(admin: AdminCreate, db: Session):
     existing_admin = db.query(Admin).filter(
         (Admin.Email == admin.Email) | 
         (Admin.Username == admin.Username)
@@ -52,8 +49,7 @@ def register_admin(admin: AdminCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@router.post("/login", response_model=BaseResponse)
-def login_admin(admin: AdminLogin, db: Session = Depends(get_db)):
+def login_admin(admin: AdminLogin, db: Session):
     admin_db = db.query(Admin).filter(Admin.Email == admin.Email).first()
     if not admin_db or not pwd_context.verify(admin.Password, admin_db.PasswordHash):
         return error_response(

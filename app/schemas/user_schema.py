@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, constr, validator, ConfigDict
 from datetime import date, datetime
 from typing import Optional
+from enum import Enum
 
 class UserCreate(BaseModel):
     Username: constr(min_length=3, max_length=50)  # type: ignore
@@ -59,3 +60,15 @@ class LoginResponseData(BaseModel):
     AccountType: str
     last_login: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+class SortBy(str, Enum):
+    user_id = "user_id"
+    username = "username"
+    email = "email"
+    balance = "balance"
+    created_at = "created_at"
+    last_login = "last_login"
+
+class Order(str, Enum):
+    asc = "asc"
+    desc = "desc"
