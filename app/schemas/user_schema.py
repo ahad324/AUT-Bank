@@ -82,3 +82,9 @@ class LoanFilterSortParams(BaseModel):
     status: Optional[str] = None  # e.g., "Pending", "Approved"
     sort_by: Optional[str] = "CreatedAt"  # e.g., "CreatedAt", "DueDate", "LoanAmount"
     order: Optional[str] = "desc"  # "asc" or "desc"
+
+class TransactionFilterSortParams(BaseModel):
+    transaction_type: Optional[str] = None  # e.g., "Deposit", "Withdrawal"
+    status: Optional[str] = None  # e.g., "Pending", "Completed", "Failed"
+    sort_by: Optional[str] = "CreatedAt"  # e.g., "CreatedAt", "Amount"
+    order: Optional[str] = "desc"  # "asc" or "desc"

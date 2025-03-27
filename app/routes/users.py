@@ -1,9 +1,10 @@
+from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 # Controller
 from app.controllers.user_controller import register_user, login_user
-from app.controllers.transaction_controller import create_transaction
+from app.controllers.transaction_controller import create_transaction, get_user_transactions
 from app.controllers.loan_controller import apply_loan, get_loan_types, make_loan_payment, get_user_loans, get_loan_payments
 # Schemas
 from app.schemas.user_schema import UserCreate, UserLogin
@@ -33,6 +34,32 @@ def perform_transaction(
     db: Session = Depends(get_db)
 ):
     return create_transaction(current_user.UserID, transaction, db)
+
+@router.get("/transactions", response_model=dict)
+def list_user_transactions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
+    transaction_type: Optional[str] = Query(None, description="Filter by transaction type"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    start_date: Optional[date] = Query(None, description="Filter by start date"),
+    end_date: Optional[date] = Query(None, description="Filter by end date"),
+    sort_by: Optional[str] = Query("Timestamp", description="Sort by field"),
+    order: Optional[str] = Query("desc", description="Sort order: asc or desc")
+):
+    return get_user_transactions(
+        user_id=current_user.UserID,
+        db=db,
+        page=page,
+        per_page=per_page,
+        transaction_type=transaction_type,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+        sort_by=sort_by,
+        order=order
+    )
 
 @router.post("/refresh", response_model=BaseResponse)
 def refresh(token: str, db: Session = Depends(get_db)):
