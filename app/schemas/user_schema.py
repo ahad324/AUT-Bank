@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, constr, validator, ConfigDict
 from datetime import date, datetime
 from typing import Optional
 from enum import Enum
+from decimal import Decimal
 
 class UserCreate(BaseModel):
     Username: constr(min_length=3, max_length=50)  # type: ignore
@@ -47,7 +48,7 @@ class UserResponseData(BaseModel):
     LastName: str
     Email: EmailStr
     AccountType: str
-    Balance: float
+    Balance: Decimal
     DateOfBirth: date
     CreatedAt: datetime
     LastLogin: Optional[datetime] = None
@@ -72,3 +73,12 @@ class SortBy(str, Enum):
 class Order(str, Enum):
     asc = "asc"
     desc = "desc"
+
+class PaginationParams(BaseModel):
+    page: int = 1  # Default to page 1
+    per_page: int = 10  # Default to 10 items per page
+
+class LoanFilterSortParams(BaseModel):
+    status: Optional[str] = None  # e.g., "Pending", "Approved"
+    sort_by: Optional[str] = "CreatedAt"  # e.g., "CreatedAt", "DueDate", "LoanAmount"
+    order: Optional[str] = "desc"  # "asc" or "desc"

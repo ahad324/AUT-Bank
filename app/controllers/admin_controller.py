@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import status
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timezone
@@ -10,7 +10,6 @@ from app.models.admin import Admin
 from app.core.auth import create_access_token, create_refresh_token
 from app.core.responses import success_response, error_response
 
-router = APIRouter(tags=["Admin Authentication"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def register_admin(admin: AdminCreate, db: Session):

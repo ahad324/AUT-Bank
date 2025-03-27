@@ -3,6 +3,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.transaction_schema import TransactionCreate, TransactionResponse
 from app.core.responses import success_response
+from app.core.schemas import PaginatedResponse
 from app.core.exceptions import CustomHTTPException
 from fastapi import status
 import uuid
@@ -86,13 +87,12 @@ def get_all_transactions(page: int, per_page: int, db: Session):
     total_items = db.query(Transaction).count()
     total_pages = (total_items + per_page - 1) // per_page
 
-    return success_response(
+    return PaginatedResponse(
+        success=True,
         message="Transactions retrieved successfully",
-        data={
-            "transactions": [TransactionResponse.model_validate(t).model_dump() for t in transactions],
-            "page": page,
-            "per_page": per_page,
-            "total_items": total_items,
-            "total_pages": total_pages
-        }
-    )
+        data={"transactions": [TransactionResponse.model_validate(t).model_dump() for t in transactions]},
+        page=page,
+        per_page=per_page,
+        total_items=total_items,
+        total_pages=total_pages
+    ).model_dump()

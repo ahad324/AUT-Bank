@@ -1,10 +1,11 @@
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 #  Controllers
 from app.controllers.admin_controller import register_admin, login_admin
 from app.controllers.transaction_controller import get_all_transactions
 from app.controllers.user_controller import get_all_users, get_user_by_id
+from app.controllers.loan_controller import approve_loan
 # Schemas
 from app.schemas.admin_schema import AdminCreate, AdminLogin
 from app.schemas.user_schema import Order, SortBy
@@ -61,3 +62,12 @@ def get_user(
 @router.post("/refresh", response_model=BaseResponse)
 def refresh(token: str, db: Session = Depends(get_db)):
     return refresh_token(token, db, Admin, "Admin", "AdminID")
+
+@router.post("/loans/{loan_id}/approve", response_model=BaseResponse)
+def approve_or_reject_loan(
+    loan_id: int,
+    new_status: str = Query(..., description="Status: Approved or Rejected"),
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    return approve_loan(loan_id, new_status, current_admin, db)
