@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 #  Controllers
 from app.controllers.admin_controller import register_admin, login_admin
-from app.controllers.transaction_controller import get_all_transactions, get_user_transactions_for_admin, get_transaction_by_id
+from app.controllers.transactions.admins import get_all_transactions, get_user_transactions_for_admin, get_transaction_by_id
 from app.controllers.user_controller import get_all_users, get_user_by_id
-from app.controllers.loan_controller import approve_loan, get_all_loans, get_user_loans_for_admin, get_loan_by_id
+from app.controllers.loans.admins import approve_loan, get_all_loans, get_user_loans_for_admin, get_loan_by_id
 # Schemas
 from app.schemas.admin_schema import AdminCreate, AdminLogin
 from app.schemas.user_schema import Order, SortBy
@@ -27,7 +27,7 @@ def register(admin: AdminCreate, db: Session = Depends(get_db)):
 def login(admin: AdminLogin, db: Session = Depends(get_db)):
     return login_admin(admin, db)
 
-@router.get("/transactions", response_model=dict)
+@router.get("/transactions", response_model= BaseResponse)
 def list_all_transactions(
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -56,7 +56,7 @@ def list_all_transactions(
         order=order
     )
 
-@router.get("/users/{user_id}/transactions", response_model=dict)
+@router.get("/users/{user_id}/transactions", response_model=BaseResponse)
 def list_user_transactions_for_admin(
     user_id: int,
     current_admin: Admin = Depends(get_current_admin),
@@ -128,7 +128,7 @@ def approve_or_reject_loan(
 ):
     return approve_loan(loan_id, new_status, current_admin, db)
 
-@router.get("/loans", response_model=dict)
+@router.get("/loans", response_model=BaseResponse)
 def list_all_loans(
     current_admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -155,7 +155,7 @@ def list_all_loans(
         order=order
     )
 
-@router.get("/users/{user_id}/loans", response_model=dict)
+@router.get("/users/{user_id}/loans", response_model=BaseResponse)
 def list_user_loans_for_admin(
     user_id: int,
     current_admin: Admin = Depends(get_current_admin),

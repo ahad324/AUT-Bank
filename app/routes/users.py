@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 # Controller
 from app.controllers.user_controller import register_user, login_user
-from app.controllers.transaction_controller import create_transaction, get_user_transactions
-from app.controllers.loan_controller import apply_loan, get_loan_types, make_loan_payment, get_user_loans, get_loan_payments
+from app.controllers.transactions.users import create_transaction, get_user_transactions
+from app.controllers.loans.users import apply_loan, get_loan_types, make_loan_payment, get_user_loans, get_loan_payments
 # Schemas
 from app.schemas.user_schema import UserCreate, UserLogin
 from app.schemas.transaction_schema import TransactionCreate
@@ -35,7 +35,7 @@ def perform_transaction(
 ):
     return create_transaction(current_user.UserID, transaction, db)
 
-@router.get("/transactions", response_model=dict)
+@router.get("/transactions", response_model=BaseResponse)
 def list_user_transactions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
