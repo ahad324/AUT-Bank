@@ -112,7 +112,7 @@ def get_all_loans(
 
     total_pages = (total_loans + per_page - 1) // per_page
 
-    PaginatedResponse(
+    return PaginatedResponse(
         success=True,
         message="Loans retrieved successfully",
         data={"loans": [loan.model_dump() for loan in loan_list]},

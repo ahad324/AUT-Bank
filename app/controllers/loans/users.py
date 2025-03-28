@@ -1,10 +1,11 @@
+from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, desc
 from app.models.loan import Loan, LoanType, LoanPayment
 from app.models.user import User
 from app.schemas.loan_schema import LoanApply, LoanPaymentCreate, LoanResponse, LoanPaymentResponse
 from app.core.responses import success_response
-from app.core.schemas import BaseResponse, PaginatedResponse
+from app.core.schemas import PaginatedResponse
 from app.core.exceptions import CustomHTTPException
 from fastapi import status
 from datetime import date
@@ -44,6 +45,7 @@ def apply_loan(user_id: int, loan: LoanApply, db: Session):
         raise CustomHTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"Failed to apply loan: {str(e)}")
 
 def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
+    # Fetch the loan and validate ownership
     loan = db.query(Loan).filter(Loan.LoanID == payment.LoanID, Loan.UserID == user_id).first()
     if not loan:
         raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="Loan not found or not owned by user")
@@ -54,35 +56,77 @@ def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
     if payment.PaymentAmount <= 0:
         raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Payment amount must be positive")
 
+    # Fetch the user to check balance
+    user = db.query(User).filter(User.UserID == user_id).first()
+    if not user:
+        raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="User not found")
+
+    # Check user balance
+    if user.Balance < payment.PaymentAmount:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message=f"Insufficient balance. Available: {float(user.Balance)}, Required: {float(payment.PaymentAmount)}"
+        )
+
+    # Fetch loan type for late fee calculation
     loan_type = db.query(LoanType).filter(LoanType.LoanTypeID == loan.LoanTypeID).first()
     if not loan_type:
         raise CustomHTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message="Loan type not found")
 
-    payment_date = payment.PaymentDate if payment.PaymentDate else date.today()
+    # Calculate late fee
+    payment_date = date.today()
     late_days = max(0, (payment_date - loan.DueDate).days) if payment_date > loan.DueDate else 0
     late_fee = late_days * float(loan_type.LatePaymentFeePerDay)
 
+    # Calculate total due and total paid so far
+    total_due = loan.LoanAmount + (loan.MonthlyInstallment * loan.LoanDurationMonths - loan.LoanAmount)  # Principal + Interest
+    total_paid = db.query(func.sum(LoanPayment.PaymentAmount)).filter(LoanPayment.LoanID == payment.LoanID).scalar() or Decimal('0')
+
+    # Calculate remaining balance
+    remaining_balance = total_due - total_paid
+    if remaining_balance <= 0:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Loan is already fully paid"
+        )
+
+    # Prevent overpayment: Cap the payment at the remaining balance
+    adjusted_payment_amount = min(payment.PaymentAmount, remaining_balance)
+
+    # Create the payment record
     new_payment = LoanPayment(
         LoanID=payment.LoanID,
-        PaymentAmount=payment.PaymentAmount,
+        PaymentAmount=adjusted_payment_amount,  # Use adjusted amount
         PaymentDate=payment_date,
         LateFee=late_fee
     )
     
     try:
+        # Deduct the payment amount from user balance
+        user.Balance -= adjusted_payment_amount
         db.add(new_payment)
         db.commit()
         db.refresh(new_payment)
+        db.refresh(user)  # Refresh user to reflect updated balance
         
-        total_paid = db.query(func.sum(LoanPayment.TotalAmountPaid)).filter(LoanPayment.LoanID == payment.LoanID).scalar() or 0
-        total_due = loan.LoanAmount + (loan.MonthlyInstallment * loan.LoanDurationMonths - loan.LoanAmount)
+        # Recalculate total paid after the new payment
+        total_paid = db.query(func.sum(LoanPayment.PaymentAmount)).filter(LoanPayment.LoanID == payment.LoanID).scalar() or Decimal('0')
         if total_paid >= total_due:
             loan.LoanStatus = "Repaid"
             db.commit()
         
+        # Prepare response data
+        response_data = {
+            "PaymentID": new_payment.PaymentID,
+            "LateFee": float(new_payment.LateFee),
+            "AdjustedPaymentAmount": float(adjusted_payment_amount)
+        }
+        if adjusted_payment_amount < payment.PaymentAmount:
+            response_data["Message"] = f"Payment adjusted to {float(adjusted_payment_amount)} to avoid overpayment. Remaining balance was {float(remaining_balance)}."
+
         return success_response(
             message="Payment recorded successfully",
-            data={"PaymentID": new_payment.PaymentID, "LateFee": float(new_payment.LateFee)}
+            data=response_data
         )
     except Exception as e:
         db.rollback()

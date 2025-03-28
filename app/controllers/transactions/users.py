@@ -38,6 +38,12 @@ def create_transaction(sender_id: int, transaction: TransactionCreate, db: Sessi
                 message="Receiver not found",
                 details={}
             )
+        if sender_id == transaction.ReceiverID:
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Cannot transfer money to yourself",
+                details={}
+            )
 
     new_transaction = Transaction(
         SenderID=sender_id if transaction.TransactionType in ["Transfer", "Withdrawal"] else None,
@@ -158,7 +164,6 @@ def get_user_transactions(
         total_items=total_items,
         total_pages=total_pages
     )
-
 def get_user_transaction_by_id(user_id: int, transaction_id: int, db: Session):
     transaction = db.query(Transaction).filter(
         Transaction.TransactionID == transaction_id,
