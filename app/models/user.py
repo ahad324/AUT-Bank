@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, DECIMAL, Date
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, DECIMAL, Date
 from sqlalchemy.sql import func, text
 from app.core.database import Base
 
@@ -15,10 +15,10 @@ class User(Base):
     Country = Column(String(50), nullable=True)
     PostalCode = Column(String(20), nullable=True)
     PhoneNumber = Column(String(20), nullable=True)
-    CNIC = Column(String(15), unique=True, nullable=False)
+    CNIC = Column(String(15), CheckConstraint("CNIC LIKE '[0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]'"), unique=True, nullable=False)
     Email = Column(String(100), unique=True, nullable=False)
     PasswordHash = Column(String(255), nullable=False)
-    AccountType = Column(String(10), nullable=False)
+    AccountType = Column(String(10), CheckConstraint("AccountType IN ('Savings', 'Current')"), nullable=False)
     Balance = Column(DECIMAL(19,4), server_default=text('0.0000'))
     BiometricEnabled = Column(Boolean, server_default=text('0'))
     DateOfBirth = Column(Date, nullable=False)

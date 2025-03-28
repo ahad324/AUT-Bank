@@ -22,9 +22,9 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     ).first()
 
     if existing_user:
-        field = "email" if existing_user.Email == user.Email else "CNIC" if existing_user.CNIC == user.CNIC else "username"
+        field = "Email" if existing_user.Email == user.Email else "CNIC" if existing_user.CNIC == user.CNIC else "Username"
         return error_response(
-            message=f"{field.capitalize()} already registered",
+            message=f"{field} already registered",
             status_code=status.HTTP_400_BAD_REQUEST
         )
 

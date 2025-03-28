@@ -27,3 +27,15 @@ class AdminResponseData(BaseModel):
     CreatedAt: datetime
     LastLogin: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+class AdminSortBy(str, Enum):
+    admin_id = "AdminID"
+    username = "Username"
+    email = "Email"
+    role = "Role"
+    created_at = "CreatedAt"
+    last_login = "LastLogin"
+
+class AdminOrder(str, Enum):
+    asc = "asc"
+    desc = "desc"   

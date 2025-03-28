@@ -1,7 +1,6 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Generic, TypeVar, Optional, Dict, Any
+from typing import TypeVar, Optional, Dict, Any
 from datetime import datetime, date
-from enum import Enum
 
 T = TypeVar('T')
 
@@ -13,7 +12,8 @@ class BaseResponse(BaseModel):
         json_encoders={
             datetime: lambda v: v.isoformat(),
             date: lambda v: v.strftime('%Y-%m-%d')
-        }
+        },
+        from_attributes=True
     )
 
 class PaginatedResponse(BaseResponse):

@@ -43,18 +43,6 @@ def apply_loan(user_id: int, loan: LoanApply, db: Session):
         db.rollback()
         raise CustomHTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"Failed to apply loan: {str(e)}")
 
-def get_loan_types(db: Session):
-    loan_types = db.query(LoanType).all()
-    return success_response(
-        message="Loan types retrieved successfully",
-        data={"loan_types": [{
-            "LoanTypeID": lt.LoanTypeID,
-            "LoanTypeName": lt.LoanTypeName,
-            "DefaultInterestRate": float(lt.DefaultInterestRate),
-            "LatePaymentFeePerDay": float(lt.LatePaymentFeePerDay)
-        } for lt in loan_types]}
-    )
-
 def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
     loan = db.query(Loan).filter(Loan.LoanID == payment.LoanID, Loan.UserID == user_id).first()
     if not loan:
@@ -100,6 +88,18 @@ def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
         db.rollback()
         raise CustomHTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"Failed to record payment: {str(e)}")
 
+def get_loan_types(db: Session):
+    loan_types = db.query(LoanType).all()
+    return success_response(
+        message="Loan types retrieved successfully",
+        data={"loan_types": [{
+            "LoanTypeID": lt.LoanTypeID,
+            "LoanTypeName": lt.LoanTypeName,
+            "DefaultInterestRate": float(lt.DefaultInterestRate),
+            "LatePaymentFeePerDay": float(lt.LatePaymentFeePerDay)
+        } for lt in loan_types]}
+    )
+
 def get_user_loans(
     user_id: int,
     db: Session,
@@ -135,7 +135,7 @@ def get_user_loans(
     loans = query.offset(offset).limit(per_page).all()
     
     if not loans:
-        paginated_response = PaginatedResponse(
+        return PaginatedResponse(
             success=True,
             message="No loans found for this user",
             data={"loans": []},
@@ -143,10 +143,6 @@ def get_user_loans(
             per_page=per_page,
             total_items=0,
             total_pages=0
-        ).model_dump()
-        return success_response(
-            message=paginated_response["message"],
-            data=paginated_response
         )
     
     loan_list = [
@@ -166,7 +162,7 @@ def get_user_loans(
     
     total_pages = (total_loans + per_page - 1) // per_page
     
-    paginated_response = PaginatedResponse(
+    return PaginatedResponse(
         success=True,
         message="Loans retrieved successfully",
         data={"loans": [loan.model_dump() for loan in loan_list]},
@@ -174,13 +170,26 @@ def get_user_loans(
         per_page=per_page,
         total_items=total_loans,
         total_pages=total_pages
-    ).model_dump()
-    
-    return success_response(
-        message=paginated_response["message"],
-        data=paginated_response
     )
 
+def get_user_loan_by_id(user_id: int, loan_id: int, db: Session):
+    loan = (
+        db.query(Loan)
+        .join(LoanType, Loan.LoanTypeID == LoanType.LoanTypeID)
+        .filter(Loan.LoanID == loan_id, Loan.UserID == user_id)
+        .first()
+    )
+    if not loan:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message="Loan not found or not associated with this user",
+            details={}
+        )
+    return success_response(
+        message="Loan retrieved successfully",
+        data=LoanResponse.model_validate(loan).model_dump()
+    )
+    
 def get_loan_payments(user_id: int, loan_id: int, db: Session, page: int = 1, per_page: int = 10):
     loan = db.query(Loan).filter(Loan.LoanID == loan_id, Loan.UserID == user_id).first()
     if not loan:
@@ -199,7 +208,7 @@ def get_loan_payments(user_id: int, loan_id: int, db: Session, page: int = 1, pe
     )
     
     if not payments:
-        paginated_response = PaginatedResponse(
+        return PaginatedResponse(
             success=True,
             message="No payments found for this loan",
             data={"payments": []},
@@ -207,15 +216,11 @@ def get_loan_payments(user_id: int, loan_id: int, db: Session, page: int = 1, pe
             per_page=per_page,
             total_items=total_payments,
             total_pages=0 if total_payments == 0 else (total_payments + per_page - 1) // per_page
-        ).model_dump()
-        return success_response(
-            message=paginated_response["message"],
-            data=paginated_response
         )
     
-    payment_list = [LoanPaymentResponse.from_orm(payment) for payment in payments]
+    payment_list = [LoanPaymentResponse.model_validate(payment) for payment in payments]
     
-    paginated_response = PaginatedResponse(
+    return PaginatedResponse(
         success=True,
         message="Payments retrieved successfully",
         data={"payments": [payment.model_dump() for payment in payment_list]},
@@ -223,9 +228,4 @@ def get_loan_payments(user_id: int, loan_id: int, db: Session, page: int = 1, pe
         per_page=per_page,
         total_items=total_payments,
         total_pages=(total_payments + per_page - 1) // per_page
-    ).model_dump()
-    
-    return success_response(
-        message=paginated_response["message"],
-        data=paginated_response
     )

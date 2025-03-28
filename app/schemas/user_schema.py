@@ -77,14 +77,3 @@ class Order(str, Enum):
 class PaginationParams(BaseModel):
     page: int = 1  # Default to page 1
     per_page: int = 10  # Default to 10 items per page
-
-class LoanFilterSortParams(BaseModel):
-    status: Optional[str] = None  # e.g., "Pending", "Approved"
-    sort_by: Optional[str] = "CreatedAt"  # e.g., "CreatedAt", "DueDate", "LoanAmount"
-    order: Optional[str] = "desc"  # "asc" or "desc"
-
-class TransactionFilterSortParams(BaseModel):
-    transaction_type: Optional[str] = None  # e.g., "Deposit", "Withdrawal"
-    status: Optional[str] = None  # e.g., "Pending", "Completed", "Failed"
-    sort_by: Optional[str] = "CreatedAt"  # e.g., "CreatedAt", "Amount"
-    order: Optional[str] = "desc"  # "asc" or "desc"

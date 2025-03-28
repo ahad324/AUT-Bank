@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey, Date, Computed
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, DECIMAL, ForeignKey, Date, Computed
 from sqlalchemy.sql import func, text
 from app.core.database import Base
 
@@ -7,8 +7,8 @@ class LoanType(Base):
 
     LoanTypeID = Column(Integer, primary_key=True, index=True)
     LoanTypeName = Column(String(50), unique=True, nullable=False)
-    DefaultInterestRate = Column(DECIMAL(5,2), nullable=False)
-    LatePaymentFeePerDay = Column(DECIMAL(10,2), nullable=False)
+    DefaultInterestRate = Column(DECIMAL(5,2), CheckConstraint("DefaultInterestRate > 0"), nullable=False)
+    LatePaymentFeePerDay = Column(DECIMAL(10,2), CheckConstraint("LatePaymentFeePerDay >= 0"), nullable=False)
 
 class Loan(Base):
     __tablename__ = "Loans"
@@ -16,9 +16,9 @@ class Loan(Base):
     LoanID = Column(Integer, primary_key=True, index=True)
     UserID = Column(Integer, ForeignKey("Users.UserID", ondelete="CASCADE"))
     LoanTypeID = Column(Integer, ForeignKey("LoanTypes.LoanTypeID", ondelete="CASCADE"))
-    LoanAmount = Column(DECIMAL(19,4), nullable=False)
+    LoanAmount = Column(DECIMAL(19,4), CheckConstraint("LoanAmount > 0"), nullable=False)
     InterestRate = Column(DECIMAL(5,2), nullable=False)
-    LoanDurationMonths = Column(Integer, nullable=False)
+    LoanDurationMonths = Column(Integer, CheckConstraint("LoanDurationMonths > 0"), nullable=False)
     MonthlyInstallment = Column(
         DECIMAL(19,4), 
         Computed(
@@ -28,7 +28,7 @@ class Loan(Base):
         nullable=False
     )
     DueDate = Column(Date, nullable=False)
-    LoanStatus = Column(String(20), server_default='Pending')
+    LoanStatus = Column(String(20), CheckConstraint("LoanStatus IN ('Pending', 'Approved', 'Rejected', 'Repaid')"), server_default='Pending')
     CreatedAt = Column(DateTime, server_default=func.now())
 
 class LoanPayment(Base):
@@ -36,7 +36,7 @@ class LoanPayment(Base):
 
     PaymentID = Column(Integer, primary_key=True, index=True)
     LoanID = Column(Integer, ForeignKey("Loans.LoanID", ondelete="CASCADE"))
-    PaymentAmount = Column(DECIMAL(19,4), nullable=False)
+    PaymentAmount = Column(DECIMAL(19,4), CheckConstraint("PaymentAmount > 0"), nullable=False)
     PaymentDate = Column(Date, server_default=text("GETDATE()"))
     LateFee = Column(DECIMAL(10,2), server_default=text("0"))
     TotalAmountPaid = Column(

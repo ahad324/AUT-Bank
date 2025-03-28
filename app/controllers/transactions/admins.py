@@ -72,7 +72,7 @@ def get_all_transactions(
     transactions = query.offset(offset).limit(per_page).all()
 
     if not transactions:
-        paginated_response = PaginatedResponse(
+        return PaginatedResponse(
             success=True,
             message="No transactions found",
             data={"transactions": []},
@@ -80,15 +80,11 @@ def get_all_transactions(
             per_page=per_page,
             total_items=0,
             total_pages=0
-        ).model_dump()
-        return success_response(
-            message=paginated_response["message"],
-            data=paginated_response
         )
 
     total_pages = (total_items + per_page - 1) // per_page
 
-    paginated_response = PaginatedResponse(
+    return PaginatedResponse(
         success=True,
         message="Transactions retrieved successfully",
         data={"transactions": [TransactionResponse.model_validate(t).model_dump() for t in transactions]},
@@ -96,11 +92,6 @@ def get_all_transactions(
         per_page=per_page,
         total_items=total_items,
         total_pages=total_pages
-    ).model_dump()
-
-    return success_response(
-        message=paginated_response["message"],
-        data=paginated_response
     )
 
 def get_user_transactions_for_admin(
@@ -170,7 +161,7 @@ def get_user_transactions_for_admin(
     transactions = query.offset(offset).limit(per_page).all()
 
     if not transactions:
-        paginated_response = PaginatedResponse(
+        return PaginatedResponse(
             success=True,
             message="No transactions found for this user",
             data={"transactions": []},
@@ -178,15 +169,11 @@ def get_user_transactions_for_admin(
             per_page=per_page,
             total_items=0,
             total_pages=0
-        ).model_dump()
-        return success_response(
-            message=paginated_response["message"],
-            data=paginated_response
         )
 
     total_pages = (total_items + per_page - 1) // per_page
 
-    paginated_response = PaginatedResponse(
+    return PaginatedResponse(
         success=True,
         message="Transactions retrieved successfully",
         data={"transactions": [TransactionResponse.model_validate(t).model_dump() for t in transactions]},
@@ -194,11 +181,6 @@ def get_user_transactions_for_admin(
         per_page=per_page,
         total_items=total_items,
         total_pages=total_pages
-    ).model_dump()
-
-    return success_response(
-        message=paginated_response["message"],
-        data=paginated_response
     )
 
 def get_transaction_by_id(transaction_id: int, db: Session):

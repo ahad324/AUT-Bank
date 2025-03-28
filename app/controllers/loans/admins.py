@@ -11,10 +11,7 @@ from fastapi import status
 from datetime import date
 from typing import Optional
 
-def approve_loan(loan_id: int, new_status: str, admin: Admin, db: Session):
-    if admin.Role not in ["SuperAdmin", "Manager"]:
-        raise CustomHTTPException(status_code=status.HTTP_403_FORBIDDEN, message="Only SuperAdmin or Manager can approve loans")
-    
+def approve_loan(loan_id: int, new_status: str, admin: Admin, db: Session):    
     loan = db.query(Loan).filter(Loan.LoanID == loan_id).first()
     if not loan:
         raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="Loan not found")
@@ -88,7 +85,7 @@ def get_all_loans(
     loans = query.offset(offset).limit(per_page).all()
 
     if not loans:
-        paginated_response = PaginatedResponse(
+        return PaginatedResponse(
             success=True,
             message="No loans found",
             data={"loans": []},
@@ -96,10 +93,6 @@ def get_all_loans(
             per_page=per_page,
             total_items=0,
             total_pages=0
-        ).model_dump()
-        return success_response(
-            message=paginated_response["message"],
-            data=paginated_response
         )
 
     loan_list = [
@@ -119,7 +112,7 @@ def get_all_loans(
 
     total_pages = (total_loans + per_page - 1) // per_page
 
-    paginated_response = PaginatedResponse(
+    PaginatedResponse(
         success=True,
         message="Loans retrieved successfully",
         data={"loans": [loan.model_dump() for loan in loan_list]},
@@ -127,13 +120,8 @@ def get_all_loans(
         per_page=per_page,
         total_items=total_loans,
         total_pages=total_pages
-    ).model_dump()
-
-    return success_response(
-        message=paginated_response["message"],
-        data=paginated_response
     )
-
+    
 def get_user_loans_for_admin(
     user_id: int,
     db: Session,
@@ -197,7 +185,7 @@ def get_user_loans_for_admin(
     loans = query.offset(offset).limit(per_page).all()
 
     if not loans:
-        paginated_response = PaginatedResponse(
+        return PaginatedResponse(
             success=True,
             message="No loans found for this user",
             data={"loans": []},
@@ -205,10 +193,6 @@ def get_user_loans_for_admin(
             per_page=per_page,
             total_items=0,
             total_pages=0
-        ).model_dump()
-        return success_response(
-            message=paginated_response["message"],
-            data=paginated_response
         )
 
     loan_list = [
@@ -228,7 +212,7 @@ def get_user_loans_for_admin(
 
     total_pages = (total_loans + per_page - 1) // per_page
 
-    paginated_response = PaginatedResponse(
+    PaginatedResponse(
         success=True,
         message="Loans retrieved successfully",
         data={"loans": [loan.model_dump() for loan in loan_list]},
@@ -236,11 +220,6 @@ def get_user_loans_for_admin(
         per_page=per_page,
         total_items=total_loans,
         total_pages=total_pages
-    ).model_dump()
-
-    return success_response(
-        message=paginated_response["message"],
-        data=paginated_response
     )
 
 def get_loan_by_id(loan_id: int, db: Session):

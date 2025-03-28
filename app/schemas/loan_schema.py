@@ -1,11 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import date
 from decimal import Decimal
 from typing import Optional
 
 class LoanApply(BaseModel):
     LoanTypeID: int
-    LoanAmount: Decimal
+    LoanAmount: Decimal = Field(gt=0)
     LoanDurationMonths: int
     DueDate: date
 
@@ -23,9 +23,7 @@ class LoanResponse(BaseModel):
     DueDate: date
     LoanStatus: str
     CreatedAt: Optional[date]
-
-    class Config:
-        from_attributes = True  # Updated for Pydantic v2
+    model_config = ConfigDict(from_attributes=True)
 
 class LoanPaymentResponse(BaseModel):
     PaymentID: int
@@ -34,6 +32,4 @@ class LoanPaymentResponse(BaseModel):
     PaymentDate: date
     LateFee: Decimal
     TotalAmountPaid: Decimal
-
-    class Config:
-        from_attributes = True 
+    model_config = ConfigDict(from_attributes=True)

@@ -13,7 +13,7 @@ from datetime import date
 from typing import Optional
 
 def create_transaction(sender_id: int, transaction: TransactionCreate, db: Session):
-    sender = db.query(User).filter(User.UserID == sender_id).first()
+    sender = db.query(User).filter(User.UserID == sender_id).with_for_update().first()
     if not sender:
         raise CustomHTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -31,7 +31,7 @@ def create_transaction(sender_id: int, transaction: TransactionCreate, db: Sessi
         )
 
     if transaction.TransactionType == "Transfer" and transaction.ReceiverID:
-        receiver = db.query(User).filter(User.UserID == transaction.ReceiverID).first()
+        receiver = db.query(User).filter(User.UserID == transaction.ReceiverID).with_for_update().first()
         if not receiver:
             raise CustomHTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -137,7 +137,7 @@ def get_user_transactions(
     transactions = query.offset(offset).limit(per_page).all()
 
     if not transactions:
-        paginated_response = PaginatedResponse(
+        return PaginatedResponse(
             success=True,
             message="No transactions found",
             data={"transactions": []},
@@ -145,15 +145,11 @@ def get_user_transactions(
             per_page=per_page,
             total_items=0,
             total_pages=0
-        ).model_dump()
-        return success_response(
-            message=paginated_response["message"],
-            data=paginated_response
         )
 
     total_pages = (total_items + per_page - 1) // per_page
 
-    paginated_response = PaginatedResponse(
+    return PaginatedResponse(
         success=True,
         message="Transactions retrieved successfully",
         data={"transactions": [TransactionResponse.model_validate(t).model_dump() for t in transactions]},
@@ -161,9 +157,23 @@ def get_user_transactions(
         per_page=per_page,
         total_items=total_items,
         total_pages=total_pages
-    ).model_dump()
+    )
 
+def get_user_transaction_by_id(user_id: int, transaction_id: int, db: Session):
+    transaction = db.query(Transaction).filter(
+        Transaction.TransactionID == transaction_id,
+        or_(
+            Transaction.SenderID == user_id,
+            Transaction.ReceiverID == user_id
+        )
+    ).first()
+    if not transaction:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message="Transaction not found or not associated with this user",
+            details={}
+        )
     return success_response(
-        message=paginated_response["message"],
-        data=paginated_response
+        message="Transaction retrieved successfully",
+        data=TransactionResponse.model_validate(transaction).model_dump()
     )
