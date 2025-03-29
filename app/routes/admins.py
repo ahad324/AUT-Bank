@@ -3,9 +3,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 #  Controllers
-from app.controllers.admin_controller import get_admin_by_id, get_all_admins, register_admin, login_admin
+from app.controllers.admin_controller import get_admin_by_id, get_all_admins, register_admin, login_admin, toggle_user_active_status
 from app.controllers.transactions.admins import get_all_transactions, get_user_transactions_for_admin, get_transaction_by_id
-from app.controllers.user_controller import get_all_users, get_user_by_id
+from app.controllers.admin_controller import get_all_users, get_user_by_id
 from app.controllers.loans.admins import approve_loan, get_all_loans, get_user_loans_for_admin, get_loan_by_id
 # Schemas
 from app.core.exceptions import CustomHTTPException
@@ -15,7 +15,7 @@ from app.schemas.user_schema import Order, SortBy
 from app.core.database import get_db
 from app.core.schemas import BaseResponse, PaginatedResponse
 from app.core.auth import refresh_token
-from app.core.rbac import PERMISSION_VIEW_ADMIN_DETAILS, PERMISSION_VIEW_ALL_ADMINS, require_permission, PERMISSION_REGISTER_ADMIN, PERMISSION_APPROVE_LOAN, \
+from app.core.rbac import PERMISSION_APPROVE_USER, PERMISSION_VIEW_ADMIN_DETAILS, PERMISSION_VIEW_ALL_ADMINS, require_permission, PERMISSION_REGISTER_ADMIN, PERMISSION_APPROVE_LOAN, \
     PERMISSION_VIEW_ALL_LOANS, PERMISSION_VIEW_USER_LOANS, PERMISSION_VIEW_LOAN_DETAILS, \
     PERMISSION_VIEW_ALL_TRANSACTIONS, PERMISSION_VIEW_USER_TRANSACTIONS, PERMISSION_VIEW_TRANSACTION_DETAILS, \
     PERMISSION_VIEW_ALL_USERS, PERMISSION_VIEW_USER_DETAILS
@@ -35,12 +35,12 @@ def bootstrap_admin(
     if db.query(Admin).count() > 0:
         raise CustomHTTPException(status_code=403, message="Admin bootstrap only allowed when no admins exist")
     return register_admin(admin, db)
-@router.post("/register", response_model=BaseResponse)
 
 # <==========================================>
 
 
 
+@router.post("/register", response_model=BaseResponse)
 def register(
     admin: AdminCreate,
     current_admin: Admin = Depends(require_permission(PERMISSION_REGISTER_ADMIN)),
@@ -91,12 +91,21 @@ def get_single_admin(
 ):
     return get_admin_by_id(admin_id, current_admin.AdminID, db)
 
+@router.put("/users/toggle-user-status/{user_id}", response_model=BaseResponse)
+def toggle_user_status(
+    user_id: int,
+    current_admin: Admin = Depends(require_permission(PERMISSION_APPROVE_USER)),
+    db: Session = Depends(get_db)
+):
+    return toggle_user_active_status(user_id, db) 
+
 @router.get("/users", response_model=PaginatedResponse)
 def list_users(
     page: int = 1,
     per_page: int = 10,
     username: Optional[str] = None,
     email: Optional[str] = None,
+    isactive: Optional[bool] = None,
     account_type: Optional[str] = None,
     balance_min: Optional[float] = None,
     balance_max: Optional[float] = None,
@@ -105,7 +114,7 @@ def list_users(
     current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_ALL_USERS)),
     db: Session = Depends(get_db)
 ):
-    return get_all_users(page, per_page, username, email, account_type, balance_min, balance_max, sort_by, order, db)
+    return get_all_users(page, per_page, username, email, isactive, account_type, balance_min, balance_max, sort_by, order, db)
 
 @router.get("/users/{user_id}", response_model=BaseResponse)
 def get_user(

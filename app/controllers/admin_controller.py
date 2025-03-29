@@ -7,12 +7,14 @@ from datetime import datetime, timezone
 # Schemas
 from app.core.exceptions import CustomHTTPException
 from app.core.schemas import PaginatedResponse
+from app.models.user import User
 from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminOrder, AdminResponseData, AdminSortBy
 # Models
 from app.models.admin import Admin
 # Core
 from app.core.auth import create_access_token, create_refresh_token
 from app.core.responses import success_response, error_response
+from app.schemas.user_schema import Order, SortBy, UserResponseData
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -141,4 +143,91 @@ def get_admin_by_id(admin_id: int, current_admin_id: int, db: Session):
         message="Admin retrieved successfully",
         data=AdminResponseData.model_validate(admin).model_dump()
     )
-       
+
+def toggle_user_active_status(user_id: int, db: Session):
+    user = db.query(User).filter(User.UserID == user_id).first()
+
+    if not user:
+        return error_response(
+            message="User not found",
+            status_code=status.HTTP_404_NOT_FOUND
+        )
+
+    user.IsActive = not user.IsActive  # Toggle the status
+    db.commit()
+    return success_response(
+        message=f"User status updated successfully. New status: {'Active' if user.IsActive else 'Inactive'}",
+        data={"UserID": user.UserID, "IsActive": user.IsActive}
+    )
+
+def get_all_users(
+    page: int,
+    per_page: int,
+    username: Optional[str] = None,
+    email: Optional[str] = None,
+    isactive: Optional[bool] = None,
+    account_type: Optional[str] = None,
+    balance_min: Optional[float] = None,
+    balance_max: Optional[float] = None,
+    sort_by: Optional[SortBy] = None,
+    order: Optional[Order] = None,
+    db: Session = None
+):
+    query = db.query(User)
+
+    # Apply filters
+    if username:
+        query = query.filter(User.Username.ilike(f"%{username}%"))
+    if email:
+        query = query.filter(User.Email.ilike(f"%{email}%"))
+    if account_type:
+        query = query.filter(User.AccountType == account_type)
+    if balance_min is not None:
+        query = query.filter(User.Balance >= balance_min)
+    if balance_max is not None:
+        query = query.filter(User.Balance <= balance_max)
+    if isactive is not None:
+        query = query.filter(User.IsActive == isactive)
+
+    # Apply sorting
+    sort_field = {
+        SortBy.user_id: User.UserID,
+        SortBy.username: User.Username,
+        SortBy.email: User.Email,
+        SortBy.balance: User.Balance,
+        SortBy.created_at: User.CreatedAt,
+        SortBy.last_login: User.LastLogin
+    }.get(sort_by, User.UserID)  # Default to UserID if sort_by is invalid
+
+    sort_order = desc if order == Order.desc else asc
+    query = query.order_by(sort_order(sort_field))
+
+    # Pagination
+    offset = (page - 1) * per_page
+    users = query.offset(offset).limit(per_page).all()
+    total_items = query.count()
+    total_pages = (total_items + per_page - 1) // per_page
+
+    return PaginatedResponse(
+        success=True,
+        message="Users retrieved successfully",
+        data={"users": [UserResponseData.model_validate(u).model_dump() for u in users]},
+        page=page,
+        per_page=per_page,
+        total_items=total_items,
+        total_pages=total_pages
+    ).model_dump()
+    
+def get_user_by_id(user_id: int, db: Session):
+    user = db.query(User).filter(User.UserID == user_id).first()
+    if not user:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message="User not found",
+            details={}
+        )
+    return success_response(
+        message="User retrieved successfully",
+        data=UserResponseData.model_validate(user).model_dump()
+    )
+           

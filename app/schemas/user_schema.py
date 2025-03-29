@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, constr, validator, ConfigDict
 from datetime import date, datetime
 from typing import Optional
 from enum import Enum
+
 from decimal import Decimal
 
 class UserCreate(BaseModel):
@@ -17,6 +18,7 @@ class UserCreate(BaseModel):
     CNIC: constr(min_length=13, max_length=15)  # type: ignore
     Email: EmailStr
     Password: str
+    IsActive: bool = False
     AccountType: str
     DateOfBirth: date  # Using date type directly
 
@@ -49,6 +51,7 @@ class UserResponseData(BaseModel):
     Email: EmailStr
     AccountType: str
     Balance: Decimal
+    IsActive: bool
     DateOfBirth: date
     CreatedAt: datetime
     LastLogin: Optional[datetime] = None

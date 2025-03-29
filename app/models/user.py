@@ -20,7 +20,7 @@ class User(Base):
     PasswordHash = Column(String(255), nullable=False)
     AccountType = Column(String(10), CheckConstraint("AccountType IN ('Savings', 'Current')"), nullable=False)
     Balance = Column(DECIMAL(19,4), server_default=text('0.0000'))
-    BiometricEnabled = Column(Boolean, server_default=text('0'))
     DateOfBirth = Column(Date, nullable=False)
+    IsActive = Column(Boolean, default=False)
     CreatedAt = Column(DateTime, server_default=func.now())
     LastLogin = Column(DateTime, nullable=True)
