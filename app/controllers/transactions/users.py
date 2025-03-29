@@ -46,7 +46,7 @@ def create_transaction(sender_id: int, transaction: TransactionCreate, db: Sessi
             )
 
     new_transaction = Transaction(
-        SenderID=sender_id if transaction.TransactionType in ["Transfer", "Withdrawal"] else None,
+        SenderID=sender_id,
         ReceiverID=transaction.ReceiverID if transaction.TransactionType == "Transfer" else None,
         Amount=amount,
         TransactionType=transaction.TransactionType,
