@@ -15,6 +15,11 @@ def apply_loan(user_id: int, loan: LoanApply, db: Session):
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:
         raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="User not found")
+    if not user.IsActive:
+        raise CustomHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Inactive users cannot apply for loans"
+        )
 
     loan_type = db.query(LoanType).filter(LoanType.LoanTypeID == loan.LoanTypeID).first()
     if not loan_type:
@@ -50,6 +55,7 @@ def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
     if not loan:
         raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="Loan not found or not owned by user")
     
+    
     if loan.LoanStatus != "Approved":
         raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Loan must be approved to accept payments")
     
@@ -60,6 +66,12 @@ def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:
         raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="User not found")
+    
+    if not user.IsActive:
+        raise CustomHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Inactive users cannot make loan payments"
+        )
 
     # Check user balance
     if user.Balance < payment.PaymentAmount:

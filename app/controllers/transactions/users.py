@@ -20,6 +20,11 @@ def create_transaction(sender_id: int, transaction: TransactionCreate, db: Sessi
             message="Sender not found",
             details={}
         )
+    if not sender.IsActive:
+        raise CustomHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Sender account is inactive"
+        )
 
     amount = Decimal(str(transaction.Amount))
     
