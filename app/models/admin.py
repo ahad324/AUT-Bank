@@ -7,7 +7,7 @@ class Admin(Base):
 
     AdminID = Column(Integer, primary_key=True, index=True)
     Username = Column(String(50), unique=True, nullable=False)
-    PasswordHash = Column(String(255), nullable=False)
+    Password = Column(String(255), nullable=False)
     Email = Column(String(100), unique=True, nullable=False, index=True)
     Role = Column(SQLEnum("SuperAdmin", "Manager", "Auditor", name="admin_role"), nullable=False)
     CreatedAt = Column(DateTime, server_default=func.now())

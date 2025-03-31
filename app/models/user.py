@@ -17,7 +17,7 @@ class User(Base):
     PhoneNumber = Column(String(20), nullable=True)
     CNIC = Column(String(15), CheckConstraint("CNIC LIKE '[0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]'"), unique=True, nullable=False)
     Email = Column(String(100), unique=True, nullable=False)
-    PasswordHash = Column(String(255), nullable=False)
+    Password = Column(String(255), nullable=False)
     AccountType = Column(String(10), CheckConstraint("AccountType IN ('Savings', 'Current')"), nullable=False)
     Balance = Column(DECIMAL(19,4), server_default=text('0.0000'))
     DateOfBirth = Column(Date, nullable=False)

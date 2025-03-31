@@ -34,6 +34,26 @@ class UserCreate(BaseModel):
             raise ValueError("CNIC must be in format XXXXX-XXXXXXX-X")
         return v
     
+class UserUpdate(BaseModel):
+    Username: Optional[constr(min_length=3, max_length=50)] = None  # type: ignore
+    FirstName: Optional[constr(max_length=50)] = None  # type: ignore
+    LastName: Optional[constr(max_length=50)] = None  # type: ignore
+    StreetAddress: Optional[constr(max_length=255)] = None  # type: ignore
+    City: Optional[constr(max_length=50)] = None  # type: ignore
+    State: Optional[constr(max_length=50)] = None  # type: ignore
+    Country: Optional[constr(max_length=50)] = None  # type: ignore
+    PostalCode: Optional[constr(max_length=20)] = None  # type: ignore
+    PhoneNumber: Optional[constr(max_length=20)] = None  # type: ignore
+    Password: Optional[constr(min_length=8)] = None # type: ignore # Added for admin updates
+    Email: Optional[EmailStr] = None
+    IsActive: Optional[bool] = None  # Admin-only field, added for flexibility
+    model_config = ConfigDict(from_attributes=True)
+    
+# Dedicated schema for user password update
+class UserPasswordUpdate(BaseModel):
+    CurrentPassword: constr(min_length=8)  # type: ignore
+    NewPassword: constr(min_length=8)  # type: ignore
+    
 class UserLogin(BaseModel):
     login_id: str  # Can be either email or username
     Password: str

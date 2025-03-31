@@ -3,19 +3,19 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 #  Controllers
-from app.controllers.admin_controller import get_admin_by_id, get_all_admins, register_admin, login_admin, toggle_user_active_status
+from app.controllers.admin_controller import delete_user, get_admin_by_id, get_all_admins, register_admin, login_admin, toggle_user_active_status, update_user
 from app.controllers.transactions.admins import get_all_transactions, get_user_transactions_for_admin, get_transaction_by_id
 from app.controllers.admin_controller import get_all_users, get_user_by_id
 from app.controllers.loans.admins import approve_loan, get_all_loans, get_user_loans_for_admin, get_loan_by_id
 # Schemas
 from app.core.exceptions import CustomHTTPException
 from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminOrder, AdminSortBy
-from app.schemas.user_schema import Order, SortBy
+from app.schemas.user_schema import Order, SortBy, UserUpdate
 # Core
 from app.core.database import get_db
 from app.core.schemas import BaseResponse, PaginatedResponse
 from app.core.auth import refresh_token
-from app.core.rbac import PERMISSION_APPROVE_USER, PERMISSION_VIEW_ADMIN_DETAILS, PERMISSION_VIEW_ALL_ADMINS, require_permission, PERMISSION_REGISTER_ADMIN, PERMISSION_APPROVE_LOAN, \
+from app.core.rbac import PERMISSION_APPROVE_USER, PERMISSION_DELETE_USER, PERMISSION_UPDATE_USER, PERMISSION_VIEW_ADMIN_DETAILS, PERMISSION_VIEW_ALL_ADMINS, require_permission, PERMISSION_REGISTER_ADMIN, PERMISSION_APPROVE_LOAN, \
     PERMISSION_VIEW_ALL_LOANS, PERMISSION_VIEW_USER_LOANS, PERMISSION_VIEW_LOAN_DETAILS, \
     PERMISSION_VIEW_ALL_TRANSACTIONS, PERMISSION_VIEW_USER_TRANSACTIONS, PERMISSION_VIEW_TRANSACTION_DETAILS, \
     PERMISSION_VIEW_ALL_USERS, PERMISSION_VIEW_USER_DETAILS
@@ -258,3 +258,21 @@ def get_single_loan(
     db: Session = Depends(get_db)
 ):
     return get_loan_by_id(loan_id, db)
+
+
+@router.put("/users/{user_id}", response_model=BaseResponse)
+def update_user_route(
+    user_id: int,
+    user_update: UserUpdate,
+    current_admin: Admin = Depends(require_permission(PERMISSION_UPDATE_USER)),
+    db: Session = Depends(get_db)
+):
+    return update_user(user_id, user_update, db)
+
+@router.delete("/users/{user_id}", response_model=BaseResponse)
+def delete_user_route(
+    user_id: int,
+    current_admin: Admin = Depends(require_permission(PERMISSION_DELETE_USER)),
+    db: Session = Depends(get_db)
+):
+    return delete_user(user_id, db)

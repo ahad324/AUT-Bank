@@ -3,11 +3,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 # Controllers
-from app.controllers.user_controller import register_user, login_user
+from app.controllers.user_controller import register_user, login_user, update_current_user, update_user_password
 from app.controllers.transactions.users import create_transaction, get_user_transaction_by_id, get_user_transactions
 from app.controllers.loans.users import apply_loan, get_loan_types, get_user_loan_by_id, make_loan_payment, get_user_loans, get_loan_payments
 # Schemas
-from app.schemas.user_schema import PaginationParams, UserCreate, UserLogin
+from app.schemas.user_schema import PaginationParams, UserCreate, UserLogin, UserPasswordUpdate, UserUpdate
 from app.schemas.transaction_schema import TransactionCreate
 from app.schemas.loan_schema import LoanApply, LoanPaymentCreate
 # Models
@@ -124,3 +124,20 @@ def list_loan_payments(
     per_page: int = Query(10, ge=1, le=100)
 ):
     return get_loan_payments(current_user.UserID, loan_id, db, page, per_page)
+
+
+@router.put("/me", response_model=BaseResponse)
+def update_current_user_route(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return update_current_user(current_user.UserID, user_update, db)
+
+@router.put("/me/password", response_model=BaseResponse)
+def update_user_password_route(
+    password_update: UserPasswordUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return update_user_password(current_user.UserID, password_update, db)

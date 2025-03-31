@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 # Schemas
 from app.core.exceptions import CustomHTTPException
 from app.core.schemas import PaginatedResponse
+from app.models.loan import Loan
 from app.models.user import User
 from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminOrder, AdminResponseData, AdminSortBy
 # Models
@@ -14,7 +15,7 @@ from app.models.admin import Admin
 # Core
 from app.core.auth import create_access_token, create_refresh_token
 from app.core.responses import success_response, error_response
-from app.schemas.user_schema import Order, SortBy, UserResponseData
+from app.schemas.user_schema import Order, SortBy, UserResponseData, UserUpdate
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -33,7 +34,7 @@ def register_admin(admin: AdminCreate, db: Session):
     new_admin = Admin(
         Username=admin.Username,
         Email=admin.Email,
-        PasswordHash=pwd_context.hash(admin.Password),
+        Password=pwd_context.hash(admin.Password),
         Role=admin.Role.value
     )
     
@@ -56,7 +57,7 @@ def register_admin(admin: AdminCreate, db: Session):
 
 def login_admin(admin: AdminLogin, db: Session):
     admin_db = db.query(Admin).filter(Admin.Email == admin.Email).first()
-    if not admin_db or not pwd_context.verify(admin.Password, admin_db.PasswordHash):
+    if not admin_db or not pwd_context.verify(admin.Password, admin_db.Password):
         return error_response(
             message="Invalid email or password",
             status_code=status.HTTP_401_UNAUTHORIZED
@@ -230,4 +231,78 @@ def get_user_by_id(user_id: int, db: Session):
         message="User retrieved successfully",
         data=UserResponseData.model_validate(user).model_dump()
     )
-           
+
+def update_user(user_id: int, user_update: UserUpdate, db: Session):
+    user = db.query(User).filter(User.UserID == user_id).first()
+    if not user:
+        raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="User not found")
+
+    # Check for unique constraints
+    if user_update.Username and user_update.Username != user.Username:
+        if db.query(User).filter(User.Username == user_update.Username).first():
+            raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Username already exists")
+    if user_update.Email and user_update.Email != user.Email:
+        if db.query(User).filter(User.Email == user_update.Email).first():
+            raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Email already exists")
+
+    # Handle password update if provided
+    update_data = user_update.model_dump(exclude_unset=True)
+    if "Password" in update_data:
+        user.Password = pwd_context.hash(update_data.pop("Password"))  # Hash and remove from update_data
+        
+    # Apply updates (including IsActive for admins)
+    for key, value in update_data.items():
+        setattr(user, key, value)
+
+    try:
+        db.commit()
+        db.refresh(user)
+        return success_response(
+            message="User updated successfully",
+            data=UserResponseData.model_validate(user).model_dump()
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to update user",
+            details={"error": str(e)}
+        )
+
+def delete_user(user_id: int, db: Session):
+    user = db.query(User).filter(User.UserID == user_id).first()
+    if not user:
+        raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="User not found")
+
+    # Check for active loans
+    active_loans = db.query(Loan).filter(
+        Loan.UserID == user_id,
+        Loan.LoanStatus.in_(["Pending", "Approved"])
+    ).count()
+    if active_loans > 0:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message=f"Cannot delete user with {active_loans} active loan(s)"
+        )
+
+    # Optionally check for non-zero balance or active transactions
+    if user.Balance != 0:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Cannot delete user with non-zero balance"
+        )
+
+    try:
+        db.delete(user)
+        db.commit()
+        return success_response(
+            message="User deleted successfully",
+            data={"UserID": user_id}
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to delete user",
+            details={"error": str(e)}
+        )           

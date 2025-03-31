@@ -21,6 +21,8 @@ PERMISSION_VIEW_TRANSACTION_DETAILS = "transaction:view_details"
 PERMISSION_APPROVE_USER = "user:approve"
 PERMISSION_VIEW_ALL_USERS = "user:view_all"
 PERMISSION_VIEW_USER_DETAILS = "user:view_details"
+PERMISSION_UPDATE_USER="user:update_details"
+PERMISSION_DELETE_USER="user:delete_details"
 
 # Role-based permissions mapping
 ROLE_PERMISSIONS: Dict[str, Set[str]] = {
@@ -38,6 +40,8 @@ ROLE_PERMISSIONS: Dict[str, Set[str]] = {
         PERMISSION_APPROVE_USER,
         PERMISSION_VIEW_ALL_USERS,
         PERMISSION_VIEW_USER_DETAILS,
+        PERMISSION_UPDATE_USER,
+        PERMISSION_DELETE_USER
     },
     "Manager": {
         PERMISSION_APPROVE_LOAN,
@@ -49,7 +53,9 @@ ROLE_PERMISSIONS: Dict[str, Set[str]] = {
         PERMISSION_VIEW_TRANSACTION_DETAILS,
         PERMISSION_APPROVE_USER,
         PERMISSION_VIEW_ALL_USERS,
-        PERMISSION_VIEW_USER_DETAILS
+        PERMISSION_VIEW_USER_DETAILS,
+        PERMISSION_UPDATE_USER,
+        PERMISSION_DELETE_USER
     },
     "Auditor": {
         PERMISSION_VIEW_ALL_LOANS,
