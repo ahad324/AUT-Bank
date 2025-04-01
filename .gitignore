@@ -49,3 +49,4 @@ logs/
 .qodo
 tempenv
 delete_pycache.py
+structuremaker.py
