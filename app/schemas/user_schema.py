@@ -20,7 +20,7 @@ class UserCreate(BaseModel):
     Password: str
     IsActive: bool = False
     AccountType: str
-    DateOfBirth: date  # Using date type directly
+    DateOfBirth: date
 
     @validator('AccountType')
     def validate_account_type(cls, v):

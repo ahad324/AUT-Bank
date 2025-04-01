@@ -1,3 +1,4 @@
+from datetime import date
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from decimal import Decimal
@@ -17,7 +18,7 @@ def create_withdrawal(withdrawal: WithdrawalCreate, db: Session):
         raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="Card not found")
     if card.Status != "Active":
         raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Card is not active")
-    if card.ExpirationDate < func.current_date():
+    if card.ExpirationDate < date.today():
         raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Card has expired")
 
     if not pwd_context.verify(withdrawal.Pin, card.Pin):

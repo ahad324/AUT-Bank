@@ -228,24 +228,6 @@ def get_user_loans(
         total_pages=total_pages
     )
 
-def get_user_loan_by_id(user_id: int, loan_id: int, db: Session):
-    loan = (
-        db.query(Loan)
-        .join(LoanType, Loan.LoanTypeID == LoanType.LoanTypeID)
-        .filter(Loan.LoanID == loan_id, Loan.UserID == user_id)
-        .first()
-    )
-    if not loan:
-        raise CustomHTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            message="Loan not found or not associated with this user",
-            details={}
-        )
-    return success_response(
-        message="Loan retrieved successfully",
-        data=LoanResponse.model_validate(loan).model_dump()
-    )
-    
 def get_loan_payments(user_id: int, loan_id: int, db: Session, page: int = 1, per_page: int = 10):
     loan = db.query(Loan).filter(Loan.LoanID == loan_id, Loan.UserID == user_id).first()
     if not loan:

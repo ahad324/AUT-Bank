@@ -128,23 +128,6 @@ def get_all_admins(
         total_pages=(total_admins + per_page - 1) // per_page
     )
 
-def get_admin_by_id(admin_id: int, current_admin_id: int, db: Session):
-    admin = db.query(Admin).filter(Admin.AdminID == admin_id).first()
-    if not admin:
-        raise CustomHTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            message="Admin not found",
-            details={}
-        )
-    # Optional: Restrict visibility (e.g., Auditor can't see SuperAdmin)
-    # if current_admin.Role == "Auditor" and admin.Role in ["SuperAdmin", "Manager"]:
-    #     raise CustomHTTPException(status_code=403, message="Permission denied")
-    
-    return success_response(
-        message="Admin retrieved successfully",
-        data=AdminResponseData.model_validate(admin).model_dump()
-    )
-
 def toggle_user_active_status(user_id: int, db: Session):
     user = db.query(User).filter(User.UserID == user_id).first()
 
@@ -219,19 +202,6 @@ def get_all_users(
         total_pages=total_pages
     ).model_dump()
     
-def get_user_by_id(user_id: int, db: Session):
-    user = db.query(User).filter(User.UserID == user_id).first()
-    if not user:
-        raise CustomHTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            message="User not found",
-            details={}
-        )
-    return success_response(
-        message="User retrieved successfully",
-        data=UserResponseData.model_validate(user).model_dump()
-    )
-
 def update_user(user_id: int, user_update: UserUpdate, db: Session):
     user = db.query(User).filter(User.UserID == user_id).first()
     if not user:

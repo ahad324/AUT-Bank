@@ -1,3 +1,4 @@
+from datetime import date
 from sqlalchemy.orm import Session
 from app.models.card import Card
 from app.schemas.card_schema import CardCreate, CardResponse
@@ -7,13 +8,20 @@ from app.core.auth import pwd_context
 from fastapi import status
 
 def create_card(user_id: int, card: CardCreate, db: Session):
+    if card.ExpirationDate <= date.today():
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Invalid ExpirationDate. The card expiration date must be in the future."
+        )
+        
     existing_active_card = db.query(Card).filter(Card.UserID == user_id, Card.Status == "Active").first()
     if existing_active_card:
         raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             message="User already has an active card"
         )
-
+    
+        
     new_card = Card(
         UserID=user_id,
         CardNumber=card.CardNumber,

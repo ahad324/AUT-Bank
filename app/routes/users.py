@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 # Controllers
 from app.controllers.cards.users import create_card
+from app.controllers.fetchtransactions.users import get_user_transactions
 from app.controllers.transfers.users import create_transfer
 from app.controllers.user_controller import register_user, login_user, update_current_user, update_user_password
 
-from app.controllers.loans.users import apply_loan, get_loan_types, get_user_loan_by_id, make_loan_payment, get_user_loans, get_loan_payments
+from app.controllers.loans.users import apply_loan, get_loan_types, make_loan_payment, get_user_loans, get_loan_payments
 # Schemas
 from app.schemas.card_schema import CardCreate
 from app.schemas.transfer_schema import TransferCreate
@@ -33,6 +34,31 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
 @router.post("/refresh", response_model=BaseResponse)
 def refresh(token: str, db: Session = Depends(get_db)):
     return refresh_token(token, db, User, "User", "UserID")
+
+@router.get("/transactions", response_model=PaginatedResponse)
+def list_user_transactions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    params: PaginationParams = Depends(),
+    transaction_type: Optional[str] = Query(None, description="Filter by transaction type"),
+    transaction_status: Optional[str] = Query(None, description="Filter by status"),
+    start_date: Optional[date] = Query(None, description="Filter by start date"),
+    end_date: Optional[date] = Query(None, description="Filter by end date"),
+    sort_by: Optional[str] = Query("Timestamp", description="Sort by field"),
+    order: Optional[str] = Query("desc", description="Sort order: asc or desc")
+):
+    return get_user_transactions(
+        user_id=current_user.UserID,
+        db=db,
+        page=params.page,
+        per_page=params.per_page,
+        transaction_type=transaction_type,
+        transaction_status=transaction_status,
+        start_date=start_date,
+        end_date=end_date,
+        sort_by=sort_by,
+        order=order
+    )
 
 @router.post("/transfers", response_model=BaseResponse)
 def create_transfer_route(
@@ -84,14 +110,6 @@ def list_user_loans(
     order: Optional[str] = Query("desc", description="Sort order: asc or desc")
 ):
     return get_user_loans(current_user.UserID, db, page, per_page, status, sort_by, order)
-
-@router.get("/loans/{loan_id}", response_model=BaseResponse)
-def get_single_loan(
-    loan_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    return get_user_loan_by_id(current_user.UserID, loan_id, db)
 
 @router.get("/loans/{loan_id}/payments", response_model=PaginatedResponse)
 def list_loan_payments(
