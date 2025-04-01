@@ -89,7 +89,7 @@ def toggle_user_status(
     current_admin: Admin = Depends(require_permission(PERMISSION_APPROVE_USER)),
     db: Session = Depends(get_db)
 ):
-    return toggle_user_active_status(user_id, db) 
+    return toggle_user_active_status(user_id,current_admin.AdminID, db) 
 
 @router.get("/users", response_model=PaginatedResponse)
 def list_users(

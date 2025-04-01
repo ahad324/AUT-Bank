@@ -128,7 +128,7 @@ def get_all_admins(
         total_pages=(total_admins + per_page - 1) // per_page
     )
 
-def toggle_user_active_status(user_id: int, db: Session):
+def toggle_user_active_status(user_id: int,current_admin_id: int, db: Session):
     user = db.query(User).filter(User.UserID == user_id).first()
 
     if not user:
@@ -137,11 +137,16 @@ def toggle_user_active_status(user_id: int, db: Session):
             status_code=status.HTTP_404_NOT_FOUND
         )
 
-    user.IsActive = not user.IsActive  # Toggle the status
+    user.IsActive = not user.IsActive
+    if user.IsActive:  # If activating, set the approving admin
+        user.ApprovedByAdminID = current_admin_id
+    else:  # If deactivating, clear the approving admin
+        user.ApprovedByAdminID = None
+        
     db.commit()
     return success_response(
         message=f"User status updated successfully. New status: {'Active' if user.IsActive else 'Inactive'}",
-        data={"UserID": user.UserID, "IsActive": user.IsActive}
+        data={"UserID": user.UserID, "IsActive": user.IsActive,"ApprovedByAdminID": user.ApprovedByAdminID}
     )
 
 def get_all_users(

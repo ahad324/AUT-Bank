@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Boolean, DECIMAL, Date
+from sqlalchemy import CheckConstraint, Column, ForeignKey, Integer, String, DateTime, Boolean, DECIMAL, Date
 from sqlalchemy.sql import func, text
 from app.core.database import Base
 
@@ -24,3 +24,4 @@ class User(Base):
     IsActive = Column(Boolean, default=False)
     CreatedAt = Column(DateTime, server_default=func.now())
     LastLogin = Column(DateTime, nullable=True)
+    ApprovedByAdminID = Column(Integer, ForeignKey("Admins.AdminID"), nullable=True)

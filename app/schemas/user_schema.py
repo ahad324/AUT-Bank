@@ -75,6 +75,7 @@ class UserResponseData(BaseModel):
     DateOfBirth: date
     CreatedAt: datetime
     LastLogin: Optional[datetime] = None
+    ApprovedByAdminID: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 class LoginResponseData(BaseModel):
