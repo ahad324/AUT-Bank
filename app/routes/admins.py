@@ -4,25 +4,25 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 #  Controllers
 from app.controllers.admin_controller import delete_user, get_admin_by_id, get_all_admins, register_admin, login_admin, toggle_user_active_status, update_user
-from app.controllers.transactions.admins import get_all_transactions, get_user_transactions_for_admin, get_transaction_by_id
+from app.controllers.deposits.admins import create_deposit
 from app.controllers.admin_controller import get_all_users, get_user_by_id
 from app.controllers.loans.admins import approve_loan, get_all_loans, get_user_loans_for_admin, get_loan_by_id
 # Schemas
 from app.core.exceptions import CustomHTTPException
 from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminOrder, AdminSortBy
+from app.schemas.deposit_schema import DepositCreate
 from app.schemas.user_schema import Order, SortBy, UserUpdate
 # Core
 from app.core.database import get_db
 from app.core.schemas import BaseResponse, PaginatedResponse
 from app.core.auth import refresh_token
-from app.core.rbac import PERMISSION_APPROVE_USER, PERMISSION_DELETE_USER, PERMISSION_UPDATE_USER, PERMISSION_VIEW_ADMIN_DETAILS, PERMISSION_VIEW_ALL_ADMINS, require_permission, PERMISSION_REGISTER_ADMIN, PERMISSION_APPROVE_LOAN, \
+from app.core.rbac import PERMISSION_APPROVE_USER, PERMISSION_DELETE_USER, PERMISSION_MANAGE_DEPOSITS, PERMISSION_UPDATE_USER, PERMISSION_VIEW_ADMIN_DETAILS, PERMISSION_VIEW_ALL_ADMINS, require_permission, PERMISSION_REGISTER_ADMIN, PERMISSION_APPROVE_LOAN, \
     PERMISSION_VIEW_ALL_LOANS, PERMISSION_VIEW_USER_LOANS, PERMISSION_VIEW_LOAN_DETAILS, \
-    PERMISSION_VIEW_ALL_TRANSACTIONS, PERMISSION_VIEW_USER_TRANSACTIONS, PERMISSION_VIEW_TRANSACTION_DETAILS, \
     PERMISSION_VIEW_ALL_USERS, PERMISSION_VIEW_USER_DETAILS
 # Models
 from app.models.admin import Admin
 
-router = APIRouter(tags=["Admin Management"])
+router = APIRouter()
 
 
 # <============ Temporary Route ============>
@@ -124,69 +124,14 @@ def get_user(
 ):
     return get_user_by_id(user_id, db)
 
-@router.get("/transactions", response_model= PaginatedResponse)
-def list_all_transactions(
-    current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_ALL_TRANSACTIONS)),
-    db: Session = Depends(get_db),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=100),
-    transaction_type: Optional[str] = Query(None, description="Filter by transaction type"),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    sender_id: Optional[int] = Query(None, description="Filter by sender ID"),
-    receiver_id: Optional[int] = Query(None, description="Filter by receiver ID"),
-    start_date: Optional[date] = Query(None, description="Filter by start date"),
-    end_date: Optional[date] = Query(None, description="Filter by end date"),
-    sort_by: Optional[str] = Query("Timestamp", description="Sort by field"),
-    order: Optional[str] = Query("desc", description="Sort order: asc or desc")
-):
-    return get_all_transactions(
-        db=db,
-        page=page,
-        per_page=per_page,
-        transaction_type=transaction_type,
-        status=status,
-        sender_id=sender_id,
-        receiver_id=receiver_id,
-        start_date=start_date,
-        end_date=end_date,
-        sort_by=sort_by,
-        order=order
-    )
-
-@router.get("/transactions/{transaction_id}", response_model=BaseResponse)
-def get_single_transaction(
-    transaction_id: int,
-    current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_TRANSACTION_DETAILS)),
+@router.post("/users/{user_id}/deposits", response_model=BaseResponse)
+def create_deposit_route(
+    user_id: int,
+    deposit: DepositCreate,
+    current_admin: Admin = Depends(require_permission(PERMISSION_MANAGE_DEPOSITS)),
     db: Session = Depends(get_db)
 ):
-    return get_transaction_by_id(transaction_id, db)
-
-@router.get("/users/{user_id}/transactions", response_model=PaginatedResponse)
-def list_user_transactions_for_admin(
-    user_id: int,
-    current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_USER_TRANSACTIONS)),
-    db: Session = Depends(get_db),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=100),
-    transaction_type: Optional[str] = Query(None, description="Filter by transaction type"),
-    status: Optional[str] = Query(None, description="Filter by status"),
-    start_date: Optional[date] = Query(None, description="Filter by start date"),
-    end_date: Optional[date] = Query(None, description="Filter by end date"),
-    sort_by: Optional[str] = Query("Timestamp", description="Sort by field"),
-    order: Optional[str] = Query("desc", description="Sort order: asc or desc")
-):
-    return get_user_transactions_for_admin(
-        user_id=user_id,
-        db=db,
-        page=page,
-        per_page=per_page,
-        transaction_type=transaction_type,
-        status=status,
-        start_date=start_date,
-        end_date=end_date,
-        sort_by=sort_by,
-        order=order
-    )
+    return create_deposit(user_id, current_admin.AdminID, deposit, db)
 
 @router.get("/loans", response_model=PaginatedResponse)
 def list_all_loans(

@@ -3,9 +3,10 @@ import uvicorn
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+
 from .core.exceptions import CustomHTTPException
 from .core.schemas import BaseResponse
-from .routes import admins, users
+from .routes import admins, users, atm
 
 app = FastAPI(
     title="AUT Banking System",
@@ -37,16 +38,23 @@ app.add_middleware(
 app.include_router(
     users.router,
     prefix="/api/v1/users",
-    tags=["User Management"],
+    tags=["User"],
     responses={404: {"description": "Not found"}}
 )
 # admin routes
 app.include_router(
     admins.router,
     prefix="/api/v1/admins",
-    tags=["Admin Management"],
+    tags=["Admin"],
+    responses={404: {"description": "Not found"}}
 )
-
+#  ATM routes
+app.include_router(
+    atm.router,
+    prefix="/api/v1/atm",
+    tags=["ATM"],
+    responses={404: {"description": "Not found"}}
+)
 
 # Custom exception handler
 @app.exception_handler(CustomHTTPException)
