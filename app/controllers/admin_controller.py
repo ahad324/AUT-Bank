@@ -35,7 +35,7 @@ def register_admin(admin: AdminCreate, db: Session):
         Username=admin.Username,
         Email=admin.Email,
         Password=pwd_context.hash(admin.Password),
-        Role=admin.Role.value
+        RoleID=admin.RoleID
     )
     
     try:
@@ -66,14 +66,14 @@ def login_admin(admin: AdminLogin, db: Session):
     admin_db.LastLogin = datetime.now(timezone.utc)
     db.commit()
 
-    access_token = create_access_token(data={"sub": str(admin_db.AdminID), "role": "Admin"})
-    refresh_token = create_refresh_token(data={"sub": str(admin_db.AdminID), "role": "Admin"})
+    access_token = create_access_token(data={"sub": str(admin_db.AdminID), "role_id": admin_db.RoleID})
+    refresh_token = create_refresh_token(data={"sub": str(admin_db.AdminID), "role_id": admin_db.RoleID})
     return success_response(
         message="Login successful",
         data={
             "AdminID": admin_db.AdminID,
             "Username": admin_db.Username,
-            "Role": admin_db.Role,
+            "Role": admin_db.RoleID,
             "last_login": admin_db.LastLogin.isoformat() if admin_db.LastLogin else None,
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -107,7 +107,7 @@ def get_all_admins(
         AdminSortBy.admin_id: Admin.AdminID,
         AdminSortBy.username: Admin.Username,
         AdminSortBy.email: Admin.Email,
-        AdminSortBy.role: Admin.Role,
+        AdminSortBy.role: Admin.RoleID,
         AdminSortBy.created_at: Admin.CreatedAt,
         AdminSortBy.last_login: Admin.LastLogin
     }.get(sort_by, Admin.AdminID)  # Default to AdminID

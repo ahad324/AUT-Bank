@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .core.exceptions import CustomHTTPException
 from .core.schemas import BaseResponse
-from .routes import admins, users, atm
+from .routes import admins, users, atm, rbac
 
 app = FastAPI(
     title="AUT Banking System",
@@ -41,19 +41,25 @@ app.include_router(
     tags=["User"],
     responses={404: {"description": "Not found"}}
 )
-# admin routes
+# admin Routes
 app.include_router(
     admins.router,
     prefix="/api/v1/admins",
     tags=["Admin"],
     responses={404: {"description": "Not found"}}
 )
-#  ATM routes
+#  ATM Routes
 app.include_router(
     atm.router,
     prefix="/api/v1/atm",
     tags=["ATM"],
     responses={404: {"description": "Not found"}}
+)
+# RBAC Routes
+app.include_router(
+    rbac.router,
+    prefix="/api/v1/rbac",
+    tags=["RBAC"]
 )
 
 # Custom exception handler

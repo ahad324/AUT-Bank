@@ -2,7 +2,7 @@ from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-#  Controllers
+# Controllers
 from app.controllers.admin_controller import delete_user, get_all_admins, register_admin, login_admin, toggle_user_active_status, update_user
 from app.controllers.deposits.admins import create_deposit
 from app.controllers.admin_controller import get_all_users
@@ -17,13 +17,11 @@ from app.schemas.user_schema import Order, SortBy, UserUpdate
 from app.core.database import get_db
 from app.core.schemas import BaseResponse, PaginatedResponse
 from app.core.auth import refresh_token
-from app.core.rbac import PERMISSION_APPROVE_USER, PERMISSION_DELETE_USER, PERMISSION_MANAGE_DEPOSITS, PERMISSION_UPDATE_USER, PERMISSION_VIEW_ADMIN_DETAILS, PERMISSION_VIEW_ALL_ADMINS, PERMISSION_VIEW_ALL_TRANSACTIONS, require_permission, PERMISSION_REGISTER_ADMIN, PERMISSION_APPROVE_LOAN, \
-    PERMISSION_VIEW_ALL_LOANS, PERMISSION_VIEW_ALL_USERS, PERMISSION_VIEW_USER_DETAILS
+from app.core.rbac import check_permission
 # Models
 from app.models.admin import Admin
 
 router = APIRouter()
-
 
 # <============ Temporary Route ============>
 @router.post("/bootstrap-admin", response_model=BaseResponse)
@@ -38,12 +36,10 @@ def bootstrap_admin(
 
 # <==========================================>
 
-
-
 @router.post("/register", response_model=BaseResponse)
 def register(
     admin: AdminCreate,
-    current_admin: Admin = Depends(require_permission(PERMISSION_REGISTER_ADMIN)),
+    current_admin: Admin = Depends(check_permission("admin:register")),
     db: Session = Depends(get_db)
 ):
     return register_admin(admin, db)
@@ -68,7 +64,7 @@ def list_all_admins(
     role: Optional[str] = Query(None, description="Filter by role (SuperAdmin, Manager, Auditor)"),
     sort_by: Optional[AdminSortBy] = Query(None, description="Sort by field"),
     order: Optional[AdminOrder] = Query(None, description="Sort order: asc or desc"),
-    current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_ALL_ADMINS)),
+    current_admin: Admin = Depends(check_permission("admin:view_all")),
     db: Session = Depends(get_db)
 ):
     return get_all_admins(
@@ -86,10 +82,10 @@ def list_all_admins(
 @router.put("/users/toggle-user-status/{user_id}", response_model=BaseResponse)
 def toggle_user_status(
     user_id: int,
-    current_admin: Admin = Depends(require_permission(PERMISSION_APPROVE_USER)),
+    current_admin: Admin = Depends(check_permission("user:approve")),
     db: Session = Depends(get_db)
 ):
-    return toggle_user_active_status(user_id,current_admin.AdminID, db) 
+    return toggle_user_active_status(user_id, current_admin.AdminID, db)
 
 @router.get("/users", response_model=PaginatedResponse)
 def list_users(
@@ -103,7 +99,7 @@ def list_users(
     balance_max: Optional[float] = None,
     sort_by: Optional[SortBy] = None,
     order: Optional[Order] = None,
-    current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_ALL_USERS)),
+    current_admin: Admin = Depends(check_permission("user:view_all")),
     db: Session = Depends(get_db)
 ):
     return get_all_users(page, per_page, username, email, isactive, account_type, balance_min, balance_max, sort_by, order, db)
@@ -112,14 +108,14 @@ def list_users(
 def create_deposit_route(
     user_id: int,
     deposit: DepositCreate,
-    current_admin: Admin = Depends(require_permission(PERMISSION_MANAGE_DEPOSITS)),
+    current_admin: Admin = Depends(check_permission("deposit:manage")),
     db: Session = Depends(get_db)
 ):
     return create_deposit(user_id, current_admin.AdminID, deposit, db)
 
 @router.get("/loans", response_model=PaginatedResponse)
 def list_all_loans(
-    current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_ALL_LOANS)),
+    current_admin: Admin = Depends(check_permission("loan:view_all")),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
@@ -148,17 +144,16 @@ def list_all_loans(
 def approve_or_reject_loan(
     loan_id: int,
     new_status: str = Query(..., description="Status: Approved or Rejected"),
-    current_admin: Admin = Depends(require_permission(PERMISSION_APPROVE_LOAN)),
+    current_admin: Admin = Depends(check_permission("loan:approve")),
     db: Session = Depends(get_db)
 ):
     return approve_loan(loan_id, new_status, current_admin, db)
-
 
 @router.put("/users/{user_id}", response_model=BaseResponse)
 def update_user_route(
     user_id: int,
     user_update: UserUpdate,
-    current_admin: Admin = Depends(require_permission(PERMISSION_UPDATE_USER)),
+    current_admin: Admin = Depends(check_permission("user:update")),
     db: Session = Depends(get_db)
 ):
     return update_user(user_id, user_update, db)
@@ -166,20 +161,20 @@ def update_user_route(
 @router.delete("/users/{user_id}", response_model=BaseResponse)
 def delete_user_route(
     user_id: int,
-    current_admin: Admin = Depends(require_permission(PERMISSION_DELETE_USER)),
+    current_admin: Admin = Depends(check_permission("user:delete")),
     db: Session = Depends(get_db)
 ):
     return delete_user(user_id, db)
 
 @router.get("/transactions", response_model=PaginatedResponse)
 def list_all_transactions(
-    current_admin: Admin = Depends(require_permission(PERMISSION_VIEW_ALL_TRANSACTIONS)),
+    current_admin: Admin = Depends(check_permission("transaction:view_all")),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
     transaction_type: Optional[str] = Query(None, description="Filter by transaction type"),
-    transaction_status: Optional[str] = Query(None, description="Filter by status"),  # Updated name
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),  # Consolidated sender/receiver
+    transaction_status: Optional[str] = Query(None, description="Filter by status"),
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
     start_date: Optional[date] = Query(None, description="Filter by start date"),
     end_date: Optional[date] = Query(None, description="Filter by end date"),
     sort_by: Optional[str] = Query("Timestamp", description="Sort by field"),
@@ -197,3 +192,5 @@ def list_all_transactions(
         sort_by=sort_by,
         order=order
     )
+
+    

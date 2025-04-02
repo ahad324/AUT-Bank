@@ -63,8 +63,8 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
     user.LastLogin = datetime.now(timezone.utc)
     db.commit()
     
-    access_token = create_access_token(data={"sub": str(user.UserID), "role": "User"})
-    refresh_token = create_refresh_token(data={"sub": str(user.UserID), "role": "User"})
+    access_token = create_access_token(data={"sub": str(user.UserID), "role_id": 0})
+    refresh_token = create_refresh_token(data={"sub": str(user.UserID), "role_id": 0})
     return success_response(
         message="Login successful",
         data={
