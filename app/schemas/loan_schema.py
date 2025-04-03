@@ -3,15 +3,18 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+
 class LoanApply(BaseModel):
     LoanTypeID: int
     LoanAmount: Decimal = Field(gt=0)
     LoanDurationMonths: int
     DueDate: date
 
+
 class LoanPaymentCreate(BaseModel):
     LoanID: int
     PaymentAmount: Decimal
+
 
 class LoanResponse(BaseModel):
     LoanID: int
@@ -24,6 +27,7 @@ class LoanResponse(BaseModel):
     LoanStatus: str
     CreatedAt: Optional[date]
     model_config = ConfigDict(from_attributes=True)
+
 
 class LoanPaymentResponse(BaseModel):
     PaymentID: int

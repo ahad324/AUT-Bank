@@ -24,23 +24,30 @@ user_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/users/login")
 admin_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/admins/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "role_id": data.get("role_id")})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+
 def create_refresh_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "jti": str(uuid.uuid4()), "role_id": data.get("role_id")})
+    to_encode.update(
+        {"exp": expire, "jti": str(uuid.uuid4()), "role_id": data.get("role_id")}
+    )
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_current_user(token: str = Depends(user_oauth2_scheme), db: Session = Depends(get_db)):
+
+def get_current_user(
+    token: str = Depends(user_oauth2_scheme), db: Session = Depends(get_db)
+):
     credentials_exception = CustomHTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         message="Could not validate credentials",
-        details={}
+        details={},
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -56,11 +63,14 @@ def get_current_user(token: str = Depends(user_oauth2_scheme), db: Session = Dep
 
     return user
 
-def get_current_admin(token: str = Depends(admin_oauth2_scheme), db: Session = Depends(get_db)):
+
+def get_current_admin(
+    token: str = Depends(admin_oauth2_scheme), db: Session = Depends(get_db)
+):
     credentials_exception = CustomHTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         message="Could not validate credentials",
-        details={}
+        details={},
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -70,11 +80,12 @@ def get_current_admin(token: str = Depends(admin_oauth2_scheme), db: Session = D
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     admin = db.query(Admin).filter(Admin.AdminID == int(admin_id)).first()
     if admin is None or admin.RoleID != role_id:
         raise credentials_exception
     return admin
+
 
 def refresh_token(refresh_token: str, db: Session, model, role: str, id_field: str):
     try:
@@ -85,29 +96,35 @@ def refresh_token(refresh_token: str, db: Session, model, role: str, id_field: s
             raise CustomHTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 message="Invalid refresh token",
-                details={}
+                details={},
             )
-        
-        entity = db.query(model).filter(getattr(model, id_field) == int(entity_id)).first()
+
+        entity = (
+            db.query(model).filter(getattr(model, id_field) == int(entity_id)).first()
+        )
         if not entity:
             raise CustomHTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 message=f"{role} not found",
-                details={}
+                details={},
             )
-        
-        new_access_token = create_access_token(data={"sub": str(entity_id), "role_id": role_id})
-        new_refresh_token = create_refresh_token(data={"sub": str(entity_id), "role_id": role_id})
+
+        new_access_token = create_access_token(
+            data={"sub": str(entity_id), "role_id": role_id}
+        )
+        new_refresh_token = create_refresh_token(
+            data={"sub": str(entity_id), "role_id": role_id}
+        )
         return success_response(
             message="Token refreshed successfully",
             data={
                 "access_token": new_access_token,
                 "refresh_token": new_refresh_token,
-                "token_type": "bearer"
-            }
+                "token_type": "bearer",
+            },
         )
     except JWTError:
         return error_response(
             message="Invalid or expired refresh token",
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=status.HTTP_401_UNAUTHORIZED,
         )

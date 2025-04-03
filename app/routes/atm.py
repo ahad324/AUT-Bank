@@ -7,9 +7,9 @@ from app.core.schemas import BaseResponse
 
 router = APIRouter()
 
+
 @router.post("/withdrawals", response_model=BaseResponse)
 def create_withdrawal_route(
-    withdrawal: WithdrawalCreate,
-    db: Session = Depends(get_db)
+    withdrawal: WithdrawalCreate, db: Session = Depends(get_db)
 ):
     return create_withdrawal(withdrawal, db)

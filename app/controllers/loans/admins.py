@@ -11,21 +11,33 @@ from fastapi import status
 from datetime import date
 from typing import Optional
 
-def approve_loan(loan_id: int, new_status: str, admin: Admin, db: Session):    
+
+def approve_loan(loan_id: int, new_status: str, admin: Admin, db: Session):
     loan = db.query(Loan).filter(Loan.LoanID == loan_id).first()
     if not loan:
-        raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="Loan not found")
-    
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Loan not found"
+        )
+
     if new_status not in ["Approved", "Rejected"]:
-        raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Invalid status")
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Invalid status"
+        )
 
     loan.LoanStatus = new_status
     try:
         db.commit()
-        return success_response(message=f"Loan {new_status.lower()} successfully", data={"LoanID": loan.LoanID})
+        return success_response(
+            message=f"Loan {new_status.lower()} successfully",
+            data={"LoanID": loan.LoanID},
+        )
     except Exception as e:
         db.rollback()
-        raise CustomHTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, message=f"Failed to update loan: {str(e)}")
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to update loan: {str(e)}",
+        )
+
 
 def get_all_loans(
     db: Session,
@@ -37,18 +49,16 @@ def get_all_loans(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     sort_by: Optional[str] = "CreatedAt",
-    order: Optional[str] = "desc"
+    order: Optional[str] = "desc",
 ):
-    query = (
-        db.query(Loan, LoanType.LoanTypeName)
-        .join(LoanType, Loan.LoanTypeID == LoanType.LoanTypeID)
+    query = db.query(Loan, LoanType.LoanTypeName).join(
+        LoanType, Loan.LoanTypeID == LoanType.LoanTypeID
     )
 
     if loan_status:
         if loan_status not in ["Pending", "Approved", "Rejected", "Repaid"]:
             raise CustomHTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                message="Invalid loan status"
+                status_code=status.HTTP_400_BAD_REQUEST, message="Invalid loan status"
             )
         query = query.filter(Loan.LoanStatus == loan_status)
 
@@ -62,7 +72,7 @@ def get_all_loans(
         if start_date > end_date:
             raise CustomHTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                message="start_date must be before end_date"
+                message="start_date must be before end_date",
             )
         query = query.filter(Loan.CreatedAt.between(start_date, end_date))
     elif start_date:
@@ -76,7 +86,7 @@ def get_all_loans(
         "CreatedAt": Loan.CreatedAt,
         "DueDate": Loan.DueDate,
         "LoanAmount": Loan.LoanAmount,
-        "MonthlyInstallment": Loan.MonthlyInstallment
+        "MonthlyInstallment": Loan.MonthlyInstallment,
     }.get(sort_by, Loan.CreatedAt)
     order_func = desc if order.lower() == "desc" else asc
     query = query.order_by(order_func(sort_column))
@@ -92,7 +102,7 @@ def get_all_loans(
             page=page,
             per_page=per_page,
             total_items=0,
-            total_pages=0
+            total_pages=0,
         )
 
     loan_list = [
@@ -105,7 +115,7 @@ def get_all_loans(
             MonthlyInstallment=loan.MonthlyInstallment,
             DueDate=loan.DueDate,
             LoanStatus=loan.LoanStatus,
-            CreatedAt=loan.CreatedAt.date() if loan.CreatedAt else None
+            CreatedAt=loan.CreatedAt.date() if loan.CreatedAt else None,
         )
         for loan, loan_type_name in loans
     ]
@@ -119,5 +129,5 @@ def get_all_loans(
         page=page,
         per_page=per_page,
         total_items=total_loans,
-        total_pages=total_pages
+        total_pages=total_pages,
     )

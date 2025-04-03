@@ -2,6 +2,7 @@ from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
 from sqlalchemy.sql import func
 from app.core.database import Base
 
+
 class Admin(Base):
     __tablename__ = "Admins"
 

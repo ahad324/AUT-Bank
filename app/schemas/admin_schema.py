@@ -3,15 +3,18 @@ from datetime import datetime
 from typing import Optional
 from enum import Enum
 
+
 class AdminCreate(BaseModel):
     Username: constr(min_length=3, max_length=50)  # type: ignore
     Email: EmailStr
     Password: str
     RoleID: int
 
+
 class AdminLogin(BaseModel):
     Email: EmailStr
     Password: str
+
 
 class AdminResponseData(BaseModel):
     AdminID: int
@@ -22,6 +25,7 @@ class AdminResponseData(BaseModel):
     LastLogin: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
+
 class AdminSortBy(str, Enum):
     admin_id = "AdminID"
     username = "Username"
@@ -29,6 +33,7 @@ class AdminSortBy(str, Enum):
     role = "RoleID"
     created_at = "CreatedAt"
     last_login = "LastLogin"
+
 
 class AdminOrder(str, Enum):
     asc = "asc"

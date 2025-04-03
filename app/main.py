@@ -19,8 +19,8 @@ app = FastAPI(
         403: {"model": BaseResponse},
         404: {"model": BaseResponse},
         422: {"model": BaseResponse},
-        500: {"model": BaseResponse}
-    }
+        500: {"model": BaseResponse},
+    },
 )
 
 # CORS Configuration
@@ -33,86 +33,80 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#<========== API routes ==========>
+# <========== API routes ==========>
 # User Routes
 app.include_router(
     users.router,
     prefix="/api/v1/users",
     tags=["User"],
-    responses={404: {"description": "Not found"}}
+    responses={404: {"description": "Not found"}},
 )
 # admin Routes
 app.include_router(
     admins.router,
     prefix="/api/v1/admins",
     tags=["Admin"],
-    responses={404: {"description": "Not found"}}
+    responses={404: {"description": "Not found"}},
 )
 #  ATM Routes
 app.include_router(
     atm.router,
     prefix="/api/v1/atm",
     tags=["ATM"],
-    responses={404: {"description": "Not found"}}
+    responses={404: {"description": "Not found"}},
 )
 # RBAC Routes
 app.include_router(
     rbac.router,
     prefix="/api/v1/rbac",
-    tags=["RBAC"]
+    tags=["RBAC"],
+    responses={404: {"description": "Not found"}},
 )
+
 
 # Custom exception handler
 @app.exception_handler(CustomHTTPException)
 async def custom_http_exception_handler(request: Request, exc: CustomHTTPException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.detail
-    )
+    return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
 
 # Health check endpoint
 @app.get(
     "/health",
     tags=["System"],
     response_model=BaseResponse,
-    summary="System health check"
+    summary="System health check",
 )
 async def health_check():
     return {
         "success": True,
         "message": "System is healthy",
-        "status_code": status.HTTP_200_OK
+        "status_code": status.HTTP_200_OK,
     }
 
+
 # Root endpoint with standardized response
-@app.get(
-    "/",
-    response_model=BaseResponse,
-    tags=["System"],
-    summary="API Welcome"
-)
+@app.get("/", response_model=BaseResponse, tags=["System"], summary="API Welcome")
 def root():
     return {
         "success": True,
         "message": "Welcome to AUT Bank API. Access /docs or /redoc for documentation.",
         "data": {
             "version": app.version,
-            "documentation": {
-                "swagger": "/docs",
-                "redoc": "/redoc"
-            }
+            "documentation": {"swagger": "/docs", "redoc": "/redoc"},
         },
-        "status_code": status.HTTP_200_OK
+        "status_code": status.HTTP_200_OK,
     }
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     workers = int(os.getenv("WORKERS", 1))  # Default to 1 worker for dev
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=port,
         workers=workers,
-        reload=os.getenv("RELOAD", "false").lower() == "true"  # Auto-reload in dev
+        reload=os.getenv("RELOAD", "false").lower() == "true",  # Auto-reload in dev
     )

@@ -12,29 +12,52 @@ from app.core.auth import pwd_context
 from fastapi import status
 import uuid
 
+
 def create_withdrawal(withdrawal: WithdrawalCreate, db: Session):
-    card = db.query(Card).filter(Card.CardNumber == withdrawal.CardNumber).with_for_update().first()
+    card = (
+        db.query(Card)
+        .filter(Card.CardNumber == withdrawal.CardNumber)
+        .with_for_update()
+        .first()
+    )
     if not card:
-        raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="Card not found")
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Card not found"
+        )
     if card.Status != "Active":
-        raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Card is not active")
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Card is not active"
+        )
     if card.ExpirationDate < date.today():
-        raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Card has expired")
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Card has expired"
+        )
 
     if not pwd_context.verify(withdrawal.Pin, card.Pin):
-        raise CustomHTTPException(status_code=status.HTTP_401_UNAUTHORIZED, message="Invalid PIN")
+        raise CustomHTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, message="Invalid PIN"
+        )
 
     user = db.query(User).filter(User.UserID == card.UserID).with_for_update().first()
     if not user:
-        raise CustomHTTPException(status_code=status.HTTP_404_NOT_FOUND, message="User not found")
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="User not found"
+        )
     if not user.IsActive:
-        raise CustomHTTPException(status_code=status.HTTP_403_FORBIDDEN, message="User account is inactive")
+        raise CustomHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, message="User account is inactive"
+        )
 
     amount = Decimal(str(withdrawal.Amount))
     if amount <= 0:
-        raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Withdrawal amount must be positive")
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Withdrawal amount must be positive",
+        )
     if user.Balance < amount:
-        raise CustomHTTPException(status_code=status.HTTP_400_BAD_REQUEST, message="Insufficient balance")
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Insufficient balance"
+        )
 
     new_withdrawal = Withdrawal(
         UserID=card.UserID,
@@ -42,7 +65,7 @@ def create_withdrawal(withdrawal: WithdrawalCreate, db: Session):
         Amount=amount,
         ReferenceNumber=str(uuid.uuid4()),
         Status="Pending",
-        Description="ATM withdrawal"
+        Description="ATM withdrawal",
     )
 
     try:
@@ -53,7 +76,7 @@ def create_withdrawal(withdrawal: WithdrawalCreate, db: Session):
         db.refresh(new_withdrawal)
         return success_response(
             message="Withdrawal completed successfully",
-            data=WithdrawalResponse.model_validate(new_withdrawal).model_dump()
+            data=WithdrawalResponse.model_validate(new_withdrawal).model_dump(),
         )
     except Exception as e:
         db.rollback()
@@ -62,5 +85,5 @@ def create_withdrawal(withdrawal: WithdrawalCreate, db: Session):
         raise CustomHTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             message="Withdrawal failed",
-            details={"error": str(e)}
+            details={"error": str(e)},
         )
