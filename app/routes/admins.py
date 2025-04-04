@@ -16,10 +16,12 @@ from app.controllers.deposits.admins import create_deposit
 from app.controllers.admin_controller import get_all_users
 from app.controllers.fetchtransactions.admins import get_all_transactions
 from app.controllers.loans.admins import approve_loan, get_all_loans
+from app.controllers.cards.admins import list_all_cards, block_card, update_card_admin
 
 # Schemas
 from app.core.exceptions import CustomHTTPException
 from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminOrder, AdminSortBy
+from app.schemas.card_schema import CardUpdate
 from app.schemas.deposit_schema import DepositCreate
 from app.schemas.user_schema import Order, SortBy, UserUpdate
 
@@ -229,3 +231,33 @@ def list_all_transactions(
         sort_by=sort_by,
         order=order,
     )
+
+
+@router.get("/cards", response_model=PaginatedResponse)
+def list_all_cards_route(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    current_admin: Admin = Depends(check_permission("card:view_all")),
+    db: Session = Depends(get_db),
+):
+    return list_all_cards(db, page, per_page, user_id)
+
+
+@router.put("/cards/{card_id}/block", response_model=BaseResponse)
+def block_card_route(
+    card_id: int,
+    current_admin: Admin = Depends(check_permission("card:manage")),
+    db: Session = Depends(get_db),
+):
+    return block_card(card_id, db)
+
+
+@router.put("/cards/{card_id}", response_model=BaseResponse)
+def update_card_admin_route(
+    card_id: int,
+    card_update: CardUpdate,
+    current_admin: Admin = Depends(check_permission("card:manage")),
+    db: Session = Depends(get_db),
+):
+    return update_card_admin(card_id, card_update, db)

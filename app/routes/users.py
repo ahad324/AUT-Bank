@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 # Controllers
-from app.controllers.cards.users import create_card
+from app.controllers.cards.users import (
+    create_card,
+    delete_card,
+    list_cards,
+    update_card,
+)
 from app.controllers.fetchtransactions.users import get_user_transactions
 from app.controllers.transfers.users import create_transfer
 from app.controllers.user_controller import (
@@ -23,7 +28,7 @@ from app.controllers.loans.users import (
 )
 
 # Schemas
-from app.schemas.card_schema import CardCreate
+from app.schemas.card_schema import CardCreate, CardUpdate
 from app.schemas.transfer_schema import TransferCreate
 from app.schemas.user_schema import (
     PaginationParams,
@@ -97,6 +102,16 @@ def create_transfer_route(
     return create_transfer(current_user.UserID, transfer, db)
 
 
+@router.get("/cards", response_model=PaginatedResponse)
+def list_cards_route(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return list_cards(current_user.UserID, db, page, per_page)
+
+
 @router.post("/cards", response_model=BaseResponse)
 def create_card_route(
     card: CardCreate,
@@ -104,6 +119,25 @@ def create_card_route(
     db: Session = Depends(get_db),
 ):
     return create_card(current_user.UserID, card, db)
+
+
+@router.put("/cards/{card_id}", response_model=BaseResponse)
+def update_card_route(
+    card_id: int,
+    card_update: CardUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return update_card(current_user.UserID, card_id, card_update, db)
+
+
+@router.delete("/cards/{card_id}", response_model=BaseResponse)
+def delete_card_route(
+    card_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return delete_card(current_user.UserID, card_id, db)
 
 
 @router.post("/loans/apply", response_model=BaseResponse)
