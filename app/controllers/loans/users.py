@@ -15,6 +15,7 @@ from app.core.exceptions import CustomHTTPException
 from fastapi import status
 from datetime import date
 from typing import Optional
+from dateutil.relativedelta import relativedelta
 
 
 def apply_loan(user_id: int, loan: LoanApply, db: Session):
@@ -109,13 +110,6 @@ def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
             message="Inactive users cannot make loan payments",
         )
 
-    # Check user balance
-    if user.Balance < payment.PaymentAmount:
-        raise CustomHTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            message=f"Insufficient balance. Available: {float(user.Balance)}, Required: {float(payment.PaymentAmount)}",
-        )
-
     # Fetch loan type for late fee calculation
     loan_type = (
         db.query(LoanType).filter(LoanType.LoanTypeID == loan.LoanTypeID).first()
@@ -126,69 +120,101 @@ def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
             message="Loan type not found",
         )
 
-    # Calculate late fee
+    # Calculate late fee based on overdue days
     payment_date = date.today()
     late_days = (
         max(0, (payment_date - loan.DueDate).days) if payment_date > loan.DueDate else 0
     )
-    late_fee = late_days * float(loan_type.LatePaymentFeePerDay)
+    late_fee = Decimal(str(late_days)) * Decimal(str(loan_type.LatePaymentFeePerDay))
 
-    # Calculate total due and total paid so far
-    total_due = loan.LoanAmount + (
-        loan.MonthlyInstallment * loan.LoanDurationMonths - loan.LoanAmount
-    )  # Principal + Interest
+    # Calculate total due (principal + interest) and total paid so far
+    total_due = Decimal(str(loan.LoanAmount)) + (
+        Decimal(str(loan.MonthlyInstallment)) * Decimal(str(loan.LoanDurationMonths))
+        - Decimal(str(loan.LoanAmount))
+    )
     total_paid = db.query(func.sum(LoanPayment.PaymentAmount)).filter(
         LoanPayment.LoanID == payment.LoanID
     ).scalar() or Decimal("0")
 
+    # Include any previous late fees in the total due
+    total_late_fees_paid = db.query(func.sum(LoanPayment.LateFee)).filter(
+        LoanPayment.LoanID == payment.LoanID
+    ).scalar() or Decimal("0")
+    total_due_with_late_fees = total_due + total_late_fees_paid + late_fee
+
     # Calculate remaining balance
-    remaining_balance = total_due - total_paid
+    remaining_balance = total_due_with_late_fees - total_paid
     if remaining_balance <= 0:
         raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             message="Loan is already fully paid",
         )
 
-    # Prevent overpayment: Cap the payment at the remaining balance
-    adjusted_payment_amount = min(payment.PaymentAmount, remaining_balance)
+    # Adjust payment amount to include late fee and cap at remaining balance
+    total_payment_required = Decimal(str(payment.PaymentAmount)) + late_fee
+    if user.Balance < total_payment_required:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message=f"Insufficient balance. Available: {float(user.Balance)}, Required: {float(total_payment_required)} (including late fee of {float(late_fee)})",
+        )
+
+    adjusted_payment_amount = min(
+        Decimal(str(payment.PaymentAmount)), remaining_balance - late_fee
+    )
+    total_amount_deducted = adjusted_payment_amount + late_fee
 
     # Create the payment record
     new_payment = LoanPayment(
         LoanID=payment.LoanID,
-        PaymentAmount=adjusted_payment_amount,  # Use adjusted amount
+        PaymentAmount=adjusted_payment_amount,
         PaymentDate=payment_date,
-        LateFee=late_fee,
+        LateFee=float(late_fee),  # Store as float for consistency
     )
 
     try:
-        # Deduct the payment amount from user balance
-        user.Balance -= adjusted_payment_amount
+        # Deduct the total amount (payment + late fee) from user balance
+        user.Balance -= total_amount_deducted
+
+        # Add payment and update loan
         db.add(new_payment)
+
+        # Shift the due date forward by one month
+        loan.DueDate = loan.DueDate + relativedelta(months=1)
+
         db.commit()
         db.refresh(new_payment)
-        db.refresh(user)  # Refresh user to reflect updated balance
+        db.refresh(user)
+        db.refresh(loan)
 
-        # Recalculate total paid after the new payment
+        # Check if loan is fully repaid
         total_paid = db.query(func.sum(LoanPayment.PaymentAmount)).filter(
             LoanPayment.LoanID == payment.LoanID
         ).scalar() or Decimal("0")
-        if total_paid >= total_due:
+        total_late_fees_paid = db.query(func.sum(LoanPayment.LateFee)).filter(
+            LoanPayment.LoanID == payment.LoanID
+        ).scalar() or Decimal("0")
+        if (total_paid + total_late_fees_paid) >= total_due_with_late_fees:
             loan.LoanStatus = "Repaid"
             db.commit()
 
         # Prepare response data
         response_data = {
             "PaymentID": new_payment.PaymentID,
+            "PaymentAmount": float(new_payment.PaymentAmount),
             "LateFee": float(new_payment.LateFee),
-            "AdjustedPaymentAmount": float(adjusted_payment_amount),
+            "TotalAmountDeducted": float(total_amount_deducted),
+            "NewDueDate": loan.DueDate,
+            "RemainingBalance": float(remaining_balance - total_amount_deducted),
+            "LoanStatus": loan.LoanStatus,
         }
-        if adjusted_payment_amount < payment.PaymentAmount:
-            response_data["Message"] = (
-                f"Payment adjusted to {float(adjusted_payment_amount)} to avoid overpayment. Remaining balance was {float(remaining_balance)}."
+        if adjusted_payment_amount < Decimal(str(payment.PaymentAmount)):
+            response_data["AdjustmentMessage"] = (
+                f"Payment adjusted to {float(adjusted_payment_amount)} to avoid overpayment."
             )
 
         return success_response(
-            message="Payment recorded successfully", data=response_data
+            message="Payment recorded successfully",
+            data=response_data,
         )
     except Exception as e:
         db.rollback()

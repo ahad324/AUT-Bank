@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from app.controllers.cards.users import (
 from app.controllers.fetchtransactions.users import get_user_transactions
 from app.controllers.transfers.users import create_transfer
 from app.controllers.user_controller import (
+    export_user_transactions,
     register_user,
     login_user,
     update_current_user,
@@ -216,3 +217,30 @@ def update_user_password_route(
     db: Session = Depends(get_db),
 ):
     return update_user_password(current_user.UserID, password_update, db)
+
+
+@router.get("/transactions/export")
+def export_user_transactions_route(
+    start_date: Optional[datetime] = Query(
+        None, description="Start date (e.g., 2025-01-01T00:00:00)"
+    ),
+    end_date: Optional[datetime] = Query(
+        None, description="End date (e.g., 2025-12-31T23:59:59)"
+    ),
+    transaction_status: Optional[str] = Query(
+        None, description="Filter by transaction status (Pending, Completed, Failed)"
+    ),
+    transaction_type: Optional[str] = Query(
+        None, description="Filter by type (Deposit, Transfer, Withdrawal)"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return export_user_transactions(
+        current_user.UserID,
+        db,
+        start_date,
+        end_date,
+        transaction_status,
+        transaction_type,
+    )

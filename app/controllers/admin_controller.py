@@ -1,6 +1,9 @@
+from io import StringIO
+import csv
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from fastapi import status
-from sqlalchemy import asc, desc, func
+from sqlalchemy import asc, case, desc, func, or_
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timezone
@@ -407,4 +410,140 @@ def get_analytics_summary(db: Session):
             },
             "average_user_balance": float(avg_user_balance),
         },
+    )
+
+
+def export_transactions(
+    db: Session,
+    user_id: Optional[int] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    transaction_status: Optional[str] = None,
+    transaction_type: Optional[str] = None,
+):
+    # Base query (similar to get_all_transactions)
+    query = (
+        db.query(
+            func.coalesce(
+                Deposit.DepositID, Transfer.TransferID, Withdrawal.WithdrawalID
+            ).label("TransactionID"),
+            User.Username.label("Username"),
+            func.coalesce(Deposit.Amount, Transfer.Amount, Withdrawal.Amount).label(
+                "Amount"
+            ),
+            func.coalesce(Deposit.Status, Transfer.Status, Withdrawal.Status).label(
+                "Status"
+            ),
+            func.coalesce(
+                Deposit.Timestamp, Transfer.Timestamp, Withdrawal.Timestamp
+            ).label("Timestamp"),
+            case(
+                (Deposit.DepositID.isnot(None), "Deposit"),
+                (Transfer.TransferID.isnot(None), "Transfer"),
+                (Withdrawal.WithdrawalID.isnot(None), "Withdrawal"),
+            ).label("TransactionType"),
+            Transfer.ReceiverID.label("ReceiverID"),
+        )
+        .outerjoin(Deposit, Deposit.UserID == User.UserID)
+        .outerjoin(Transfer, Transfer.SenderID == User.UserID)
+        .outerjoin(Withdrawal, Withdrawal.UserID == User.UserID)
+        .filter(
+            or_(
+                Deposit.DepositID.isnot(None),
+                Transfer.TransferID.isnot(None),
+                Withdrawal.WithdrawalID.isnot(None),
+            )
+        )
+    )
+
+    # Apply filters
+    if user_id:
+        query = query.filter(User.UserID == user_id)
+    if start_date:
+        query = query.filter(
+            func.coalesce(Deposit.Timestamp, Transfer.Timestamp, Withdrawal.Timestamp)
+            >= start_date
+        )
+    if end_date:
+        query = query.filter(
+            func.coalesce(Deposit.Timestamp, Transfer.Timestamp, Withdrawal.Timestamp)
+            <= end_date
+        )
+    if transaction_status:
+        if transaction_status not in ["Pending", "Completed", "Failed"]:
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Invalid transaction status value",
+            )
+        query = query.filter(
+            func.coalesce(Deposit.Status, Transfer.Status, Withdrawal.Status)
+            == transaction_status
+        )
+    if transaction_type:
+        if transaction_type not in ["Deposit", "Transfer", "Withdrawal"]:
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Invalid transaction type",
+            )
+        if transaction_type == "Deposit":
+            query = query.filter(Deposit.DepositID.isnot(None))
+        elif transaction_type == "Transfer":
+            query = query.filter(Transfer.TransferID.isnot(None))
+        elif transaction_type == "Withdrawal":
+            query = query.filter(Withdrawal.WithdrawalID.isnot(None))
+
+    # Execute query
+    transactions = query.all()
+
+    if not transactions:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message="No transactions found for export",
+        )
+
+    # Create CSV in memory
+    output = StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+
+    # Write headers
+    headers = [
+        "TransactionID",
+        "Username",
+        "Amount",
+        "Status",
+        "Timestamp",
+        "TransactionType",
+        "ReceiverUsername",
+    ]
+    writer.writerow(headers)
+
+    # Fetch receiver usernames for transfers
+    receiver_ids = {t.ReceiverID for t in transactions if t.ReceiverID}
+    receivers = (
+        db.query(User.UserID, User.Username).filter(User.UserID.in_(receiver_ids)).all()
+    )
+    receiver_map = {r.UserID: r.Username for r in receivers}
+
+    # Write rows
+    for t in transactions:
+        receiver_username = receiver_map.get(t.ReceiverID, "") if t.ReceiverID else ""
+        writer.writerow(
+            [
+                t.TransactionID,
+                t.Username,
+                f"{float(t.Amount):.2f}",
+                t.Status,
+                t.Timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                t.TransactionType,
+                receiver_username,
+            ]
+        )
+
+    # Prepare streaming response
+    output.seek(0)
+    filename = f"transactions_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 # Controllers
 from app.controllers.admin_controller import (
     delete_user,
+    export_transactions,
     get_all_admins,
     register_admin,
     login_admin,
@@ -270,3 +271,26 @@ def update_card_admin_route(
     db: Session = Depends(get_db),
 ):
     return update_card_admin(card_id, card_update, db)
+
+
+@router.get("/transactions/export")
+def export_transactions_route(
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    start_date: Optional[datetime] = Query(
+        None, description="Start date (e.g., 2025-01-01T00:00:00)"
+    ),
+    end_date: Optional[datetime] = Query(
+        None, description="End date (e.g., 2025-12-31T23:59:59)"
+    ),
+    transaction_status: Optional[str] = Query(
+        None, description="Filter by transaction status (Pending, Completed, Failed)"
+    ),
+    transaction_type: Optional[str] = Query(
+        None, description="Filter by type (Deposit, Transfer, Withdrawal)"
+    ),
+    current_admin: Admin = Depends(check_permission("transactions:export")),
+    db: Session = Depends(get_db),
+):
+    return export_transactions(
+        db, user_id, start_date, end_date, transaction_status, transaction_type
+    )
