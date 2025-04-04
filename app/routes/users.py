@@ -17,6 +17,7 @@ from app.controllers.user_controller import (
     login_user,
     update_current_user,
     update_user_password,
+    get_user_analytics_summary,
 )
 
 from app.controllers.loans.users import (
@@ -63,6 +64,14 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
 @router.post("/refresh", response_model=BaseResponse)
 def refresh(token: str, db: Session = Depends(get_db)):
     return refresh_token(token, db, User, "User", "UserID")
+
+
+@router.get("/analytics/summary", response_model=BaseResponse)
+def get_user_analytics_summary_route(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return get_user_analytics_summary(current_user.UserID, db)
 
 
 @router.get("/transactions", response_model=PaginatedResponse)

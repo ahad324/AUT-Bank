@@ -15,6 +15,11 @@ from app.core.responses import success_response, error_response
 from app.core.auth import create_access_token, create_refresh_token
 from passlib.context import CryptContext
 from datetime import datetime, timezone
+from sqlalchemy import func
+from app.models.deposit import Deposit
+from app.models.transfer import Transfer
+from app.models.withdrawal import Withdrawal
+from app.models.loan import Loan
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -179,3 +184,125 @@ def update_user_password(
             message="Failed to update password",
             details={"error": str(e)},
         )
+
+
+def get_user_analytics_summary(user_id: int, db: Session):
+    # Total Transactions
+    deposit_count = (
+        db.query(Deposit)
+        .filter(Deposit.UserID == user_id, Deposit.Status == "Completed")
+        .count()
+    )
+    deposit_total = (
+        db.query(func.sum(Deposit.Amount))
+        .filter(Deposit.UserID == user_id, Deposit.Status == "Completed")
+        .scalar()
+        or 0
+    )
+
+    transfer_sent_count = (
+        db.query(Transfer)
+        .filter(Transfer.SenderID == user_id, Transfer.Status == "Completed")
+        .count()
+    )
+    transfer_sent_total = (
+        db.query(func.sum(Transfer.Amount))
+        .filter(Transfer.SenderID == user_id, Transfer.Status == "Completed")
+        .scalar()
+        or 0
+    )
+
+    transfer_received_count = (
+        db.query(Transfer)
+        .filter(Transfer.ReceiverID == user_id, Transfer.Status == "Completed")
+        .count()
+    )
+    transfer_received_total = (
+        db.query(func.sum(Transfer.Amount))
+        .filter(Transfer.ReceiverID == user_id, Transfer.Status == "Completed")
+        .scalar()
+        or 0
+    )
+
+    withdrawal_count = (
+        db.query(Withdrawal)
+        .filter(Withdrawal.UserID == user_id, Withdrawal.Status == "Completed")
+        .count()
+    )
+    withdrawal_total = (
+        db.query(func.sum(Withdrawal.Amount))
+        .filter(Withdrawal.UserID == user_id, Withdrawal.Status == "Completed")
+        .scalar()
+        or 0
+    )
+
+    total_transaction_count = (
+        deposit_count + transfer_sent_count + transfer_received_count + withdrawal_count
+    )
+    total_transaction_volume = float(
+        deposit_total + transfer_sent_total + transfer_received_total + withdrawal_total
+    )
+
+    # Average Transaction Amount
+    avg_transaction_amount = (
+        total_transaction_volume / total_transaction_count
+        if total_transaction_count > 0
+        else 0
+    )
+
+    # Total Loan Amounts
+    total_loan_amount = (
+        db.query(func.sum(Loan.LoanAmount))
+        .filter(Loan.UserID == user_id, Loan.LoanStatus == "Approved")
+        .scalar()
+        or 0
+    )
+    total_loan_count = (
+        db.query(Loan)
+        .filter(Loan.UserID == user_id, Loan.LoanStatus == "Approved")
+        .count()
+    )
+
+    # Pending Loans
+    pending_loan_count = (
+        db.query(Loan)
+        .filter(Loan.UserID == user_id, Loan.LoanStatus == "Pending")
+        .count()
+    )
+
+    # Current Balance
+    user = db.query(User).filter(User.UserID == user_id).first()
+    current_balance = float(user.Balance) if user else 0
+
+    return success_response(
+        message="User analytics summary retrieved successfully",
+        data={
+            "transactions": {
+                "total_count": total_transaction_count,
+                "total_volume": total_transaction_volume,
+                "deposits": {
+                    "count": deposit_count,
+                    "amount": float(deposit_total),
+                },
+                "transfers_sent": {
+                    "count": transfer_sent_count,
+                    "amount": float(transfer_sent_total),
+                },
+                "transfers_received": {
+                    "count": transfer_received_count,
+                    "amount": float(transfer_received_total),
+                },
+                "withdrawals": {
+                    "count": withdrawal_count,
+                    "amount": float(withdrawal_total),
+                },
+                "average_amount": float(avg_transaction_amount),
+            },
+            "loans": {
+                "total_approved_amount": float(total_loan_amount),
+                "total_approved_count": total_loan_count,
+                "pending_count": pending_loan_count,
+            },
+            "current_balance": current_balance,
+        },
+    )

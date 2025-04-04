@@ -11,6 +11,7 @@ from app.controllers.admin_controller import (
     login_admin,
     toggle_user_active_status,
     update_user,
+    get_analytics_summary,
 )
 from app.controllers.deposits.admins import create_deposit
 from app.controllers.admin_controller import get_all_users
@@ -68,6 +69,14 @@ def login(credentials: AdminLogin, db: Session = Depends(get_db)):
 @router.post("/refresh", response_model=BaseResponse)
 def refresh(token: str, db: Session = Depends(get_db)):
     return refresh_token(token, db, Admin, "Admin", "AdminID")
+
+
+@router.get("/analytics/summary", response_model=BaseResponse)
+def get_analytics_summary_route(
+    current_admin: Admin = Depends(check_permission("analytics:view")),
+    db: Session = Depends(get_db),
+):
+    return get_analytics_summary(db)
 
 
 @router.get("/admins", response_model=PaginatedResponse)

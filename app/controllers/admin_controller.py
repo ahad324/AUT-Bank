@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import status
-from sqlalchemy import asc, desc
+from sqlalchemy import asc, desc, func
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timezone
@@ -20,6 +20,9 @@ from app.schemas.admin_schema import (
 
 # Models
 from app.models.admin import Admin
+from app.models.deposit import Deposit
+from app.models.transfer import Transfer
+from app.models.withdrawal import Withdrawal
 
 # Core
 from app.core.auth import create_access_token, create_refresh_token
@@ -328,3 +331,80 @@ def delete_user(user_id: int, db: Session):
             message="Failed to delete user",
             details={"error": str(e)},
         )
+
+
+def get_analytics_summary(db: Session):
+    # Total Users
+    total_users = db.query(User).count()
+    active_users = db.query(User).filter(User.IsActive == True).count()
+    inactive_users = total_users - active_users
+
+    # Total Transaction Volume
+    deposit_total = (
+        db.query(func.sum(Deposit.Amount))
+        .filter(Deposit.Status == "Completed")
+        .scalar()
+        or 0
+    )
+    transfer_total = (
+        db.query(func.sum(Transfer.Amount))
+        .filter(Transfer.Status == "Completed")
+        .scalar()
+        or 0
+    )
+    withdrawal_total = (
+        db.query(func.sum(Withdrawal.Amount))
+        .filter(Withdrawal.Status == "Completed")
+        .scalar()
+        or 0
+    )
+    total_transaction_volume = float(deposit_total + transfer_total + withdrawal_total)
+
+    # Total Loan Amounts
+    total_loan_amount = (
+        db.query(func.sum(Loan.LoanAmount))
+        .filter(Loan.LoanStatus == "Approved")
+        .scalar()
+        or 0
+    )
+    total_loan_count = db.query(Loan).filter(Loan.LoanStatus == "Approved").count()
+
+    # Pending Loans
+    pending_loan_count = db.query(Loan).filter(Loan.LoanStatus == "Pending").count()
+    pending_loan_amount = (
+        db.query(func.sum(Loan.LoanAmount))
+        .filter(Loan.LoanStatus == "Pending")
+        .scalar()
+        or 0
+    )
+
+    # Repaid Loans
+    repaid_loan_count = db.query(Loan).filter(Loan.LoanStatus == "Repaid").count()
+
+    # Average User Balance
+    avg_user_balance = db.query(func.avg(User.Balance)).scalar() or 0
+
+    return success_response(
+        message="Analytics summary retrieved successfully",
+        data={
+            "users": {
+                "total": total_users,
+                "active": active_users,
+                "inactive": inactive_users,
+            },
+            "transactions": {
+                "total_volume": total_transaction_volume,
+                "deposits": float(deposit_total),
+                "transfers": float(transfer_total),
+                "withdrawals": float(withdrawal_total),
+            },
+            "loans": {
+                "total_approved_amount": float(total_loan_amount),
+                "total_approved_count": total_loan_count,
+                "pending_count": pending_loan_count,
+                "pending_amount": float(pending_loan_amount),
+                "repaid_count": repaid_loan_count,
+            },
+            "average_user_balance": float(avg_user_balance),
+        },
+    )
