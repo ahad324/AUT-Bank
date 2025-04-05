@@ -48,5 +48,3 @@ logs/
 # Development files
 .qodo
 tempenv
-delete_pycache.py
-structuremaker.py

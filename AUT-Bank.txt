@@ -1,0 +1,229 @@
+-- Create Roles Table
+CREATE TABLE Roles (
+    RoleID INT IDENTITY(1,1) PRIMARY KEY,
+    RoleName NVARCHAR(50) NOT NULL UNIQUE,
+    Description NVARCHAR(255) NULL
+);
+GO
+
+-- Create Admins Table
+CREATE TABLE Admins (
+    AdminID INT IDENTITY(1,1) PRIMARY KEY,
+    Username NVARCHAR(50) NOT NULL UNIQUE,
+    Password NVARCHAR(255) NOT NULL,
+    Email NVARCHAR(100) UNIQUE NOT NULL,
+    RoleID INT NOT NULL FOREIGN KEY REFERENCES Roles(RoleID),
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    LastLogin DATETIME NULL
+);
+GO
+
+-- Create Permissions Table
+CREATE TABLE Permissions (
+    PermissionID INT IDENTITY(1,1) PRIMARY KEY,
+    PermissionName NVARCHAR(100) NOT NULL UNIQUE, -- e.g., "user:view_all"
+    Description NVARCHAR(255) NULL
+);
+GO
+
+-- Create RolePermissions Table (many-to-many relationship)
+CREATE TABLE RolePermissions (
+    RolePermissionID INT IDENTITY(1,1) PRIMARY KEY,
+    RoleID INT NOT NULL FOREIGN KEY REFERENCES Roles(RoleID) ON DELETE CASCADE,
+    PermissionID INT NOT NULL FOREIGN KEY REFERENCES Permissions(PermissionID) ON DELETE CASCADE,
+    CONSTRAINT UQ_RolePermission UNIQUE (RoleID, PermissionID) -- Ensure no duplicate role-permission pairs
+);
+GO
+
+-- Create Users Table with enhanced fields
+CREATE TABLE Users (
+    UserID INT IDENTITY(1,1) PRIMARY KEY,
+    Username NVARCHAR(50) NOT NULL UNIQUE,
+    FirstName NVARCHAR(50) NOT NULL DEFAULT '',
+    LastName NVARCHAR(50) NOT NULL DEFAULT '',
+    StreetAddress NVARCHAR(255) NULL,
+    City NVARCHAR(50) NULL,
+    State NVARCHAR(50) NULL,
+    Country NVARCHAR(50) NULL,
+    PostalCode NVARCHAR(20) NULL,
+    PhoneNumber NVARCHAR(20) NULL,
+    CNIC NVARCHAR(15) UNIQUE NOT NULL,
+    CONSTRAINT CHK_CNIC_Format CHECK (CNIC LIKE '[0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]'),
+    Email NVARCHAR(100) UNIQUE NOT NULL,
+    Password NVARCHAR(255) NOT NULL,
+    AccountType NVARCHAR(10) CHECK (AccountType IN ('Savings', 'Current')) NOT NULL,
+    Balance DECIMAL(19,4) DEFAULT 0.0000,
+    IsActive BIT DEFAULT 0,
+    DateOfBirth DATE NOT NULL,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    LastLogin DATETIME NULL,
+    ApprovedByAdminID INT NULL FOREIGN KEY REFERENCES Admins(AdminID)
+);
+GO
+
+-- Create Cards Table
+CREATE TABLE Cards (
+    CardID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE CASCADE,
+    CardNumber NVARCHAR(16) NOT NULL UNIQUE CHECK (LEN(CardNumber) = 16 AND CardNumber NOT LIKE '%[^0-9]%'),
+    Pin NVARCHAR(255) NOT NULL, -- Hashed PIN
+    ExpirationDate DATE NOT NULL CHECK (ExpirationDate > GETDATE()),
+    Status NVARCHAR(20) NOT NULL CHECK (Status IN ('Active', 'Expired', 'Blocked')) DEFAULT 'Active',
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    CONSTRAINT CHK_One_Active_Card_Per_User UNIQUE (UserID, Status)
+);
+GO
+
+-- Create LoanTypes Table
+CREATE TABLE LoanTypes (
+    LoanTypeID INT IDENTITY(1,1) PRIMARY KEY,
+    LoanTypeName NVARCHAR(50) NOT NULL UNIQUE, 
+    DefaultInterestRate DECIMAL(5,2) NOT NULL CHECK (DefaultInterestRate > 0),
+    LatePaymentFeePerDay DECIMAL(10,2) NOT NULL CHECK (LatePaymentFeePerDay >= 0)
+);
+GO
+
+-- Create Loans Table with improved monthly installment calculation
+CREATE TABLE Loans (
+    LoanID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT FOREIGN KEY REFERENCES Users(UserID) ON DELETE CASCADE,
+    LoanTypeID INT FOREIGN KEY REFERENCES LoanTypes(LoanTypeID) ON DELETE CASCADE,
+    LoanAmount DECIMAL(19,4) NOT NULL CHECK (LoanAmount > 0),
+    InterestRate DECIMAL(5,2) NOT NULL,  
+    LoanDurationMonths INT NOT NULL CHECK (LoanDurationMonths > 0), 
+    MonthlyInstallment AS 
+        (LoanAmount * (InterestRate/100/12) * POWER(1 + (InterestRate/100/12), LoanDurationMonths)) / 
+        (POWER(1 + (InterestRate/100/12), LoanDurationMonths) - 1) PERSISTED,
+    DueDate DATE NOT NULL, 
+    LoanStatus NVARCHAR(20) CHECK (LoanStatus IN ('Pending', 'Approved', 'Rejected', 'Repaid')) DEFAULT 'Pending',
+    CreatedAt DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- Create LoanPayments Table with computed TotalAmountPaid
+CREATE TABLE LoanPayments (
+    PaymentID INT IDENTITY(1,1) PRIMARY KEY,
+    LoanID INT FOREIGN KEY REFERENCES Loans(LoanID) ON DELETE CASCADE,
+    PaymentAmount DECIMAL(19,4) NOT NULL CHECK (PaymentAmount > 0),
+    PaymentDate DATE NOT NULL DEFAULT GETDATE(),
+    LateFee DECIMAL(10,2) DEFAULT 0, 
+    TotalAmountPaid AS (PaymentAmount + LateFee) PERSISTED
+);
+GO
+
+-- Create Transfers Table (for user-initiated transfers)
+CREATE TABLE Transfers (
+    TransferID INT IDENTITY(1,1) PRIMARY KEY,
+    SenderID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE NO ACTION,
+    ReceiverID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE NO ACTION,
+    Amount DECIMAL(19,4) NOT NULL CHECK (Amount > 0),
+    ReferenceNumber NVARCHAR(50) NOT NULL,
+    Status NVARCHAR(20) CHECK (Status IN ('Pending', 'Completed', 'Failed')) DEFAULT 'Pending',
+    Description NVARCHAR(255) NULL,
+    Timestamp DATETIME DEFAULT GETDATE()
+);
+GO
+-- Create Deposits Table (for admin-initiated deposits)
+CREATE TABLE Deposits (
+    DepositID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE NO ACTION,
+    AdminID INT NOT NULL FOREIGN KEY REFERENCES Admins(AdminID),
+    Amount DECIMAL(19,4) NOT NULL CHECK (Amount > 0),
+    ReferenceNumber NVARCHAR(50) NOT NULL,
+    Status NVARCHAR(20) CHECK (Status IN ('Pending', 'Completed', 'Failed')) DEFAULT 'Pending',
+    Description NVARCHAR(255) NULL,
+    Timestamp DATETIME DEFAULT GETDATE()
+);
+GO
+-- Create Withdrawals Table (for ATM withdrawals)
+CREATE TABLE Withdrawals (
+    WithdrawalID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE NO ACTION,
+    CardID INT NOT NULL FOREIGN KEY REFERENCES Cards(CardID),
+    Amount DECIMAL(19,4) NOT NULL CHECK (Amount > 0),
+    ReferenceNumber NVARCHAR(50) NOT NULL,
+    Status NVARCHAR(20) CHECK (Status IN ('Pending', 'Completed', 'Failed')) DEFAULT 'Pending',
+    Description NVARCHAR(255) NULL,
+    Timestamp DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- Create Indexes for Faster Queries
+CREATE INDEX idx_users_email ON Users(Email);
+CREATE INDEX idx_users_cnic ON Users(CNIC);
+CREATE INDEX idx_users_username ON Users(Username);
+CREATE INDEX idx_users_createdat ON Users(CreatedAt);
+CREATE INDEX idx_users_account_type ON Users(AccountType);
+CREATE INDEX idx_users_balance ON Users(Balance);
+CREATE INDEX idx_users_phone ON Users(PhoneNumber) WHERE PhoneNumber IS NOT NULL;
+CREATE INDEX idx_users_approvedby ON Users(ApprovedByAdminID);
+
+CREATE INDEX idx_admins_email ON Admins(Email);
+
+CREATE INDEX idx_transfers_senderid ON Transfers(SenderID);
+CREATE INDEX idx_transfers_receiverid ON Transfers(ReceiverID);
+CREATE INDEX idx_transfers_status ON Transfers(Status);
+CREATE INDEX idx_transfers_timestamp ON Transfers(Timestamp);
+
+CREATE INDEX idx_deposits_userid ON Deposits(UserID);
+CREATE INDEX idx_deposits_adminid ON Deposits(AdminID);
+CREATE INDEX idx_deposits_status ON Deposits(Status);
+CREATE INDEX idx_deposits_timestamp ON Deposits(Timestamp);
+
+CREATE INDEX idx_withdrawals_userid ON Withdrawals(UserID);
+CREATE INDEX idx_withdrawals_cardid ON Withdrawals(CardID);
+CREATE INDEX idx_withdrawals_status ON Withdrawals(Status);
+CREATE INDEX idx_withdrawals_timestamp ON Withdrawals(Timestamp);
+
+CREATE INDEX idx_cards_userid ON Cards(UserID);
+CREATE INDEX idx_cards_cardnumber ON Cards(CardNumber);
+CREATE INDEX idx_cards_status ON Cards(Status);
+GO
+
+CREATE INDEX idx_loans_userid ON Loans(UserID);
+CREATE INDEX idx_loans_loantypeid ON Loans(LoanTypeID);
+CREATE INDEX idx_loans_duedate ON Loans(DueDate);
+CREATE INDEX idx_loans_status ON Loans(LoanStatus);
+GO
+
+INSERT INTO LoanTypes (LoanTypeName, DefaultInterestRate, LatePaymentFeePerDay)
+VALUES 
+    ('Personal Loan', 5.50, 10.00),  -- 5.5% interest, $10/day late fee
+    ('Home Loan', 3.75, 15.00),     -- 3.75% interest, $15/day late fee
+    ('Car Loan', 4.25, 12.50),      -- 4.25% interest, $12.50/day late fee
+    ('Education Loan', 6.00, 8.00); -- 6% interest, $8/day late fee
+
+
+-- Seed initial data (optional, for testing)
+INSERT INTO Roles (RoleName, Description) VALUES
+('SuperAdmin', 'Full system access'),
+('Manager', 'Manages operations'),
+('Auditor', 'Views and audits data');
+GO
+
+INSERT INTO Permissions (PermissionName, Description) VALUES
+('admin:register', 'Register new admins'),
+('admin:view_all', 'View all admins'),
+('user:approve', 'Approve user accounts'),
+('user:view_all', 'View all users'),
+('loan:approve', 'Approve or reject loans'),
+('loan:view_all', 'View all loans'),
+('transaction:view_all', 'View all transactions'),
+('deposit:manage', 'Manage deposits'),
+('rbac:manage_permissions', 'Manage role-based access control permissions'),
+('rbac:view_permissions', 'View role-based access control permissions'),
+('rbac:manage_role_permissions', 'Manage role permissions in RBAC'),
+('rbac:view_roles', 'View all roles in RBAC'),
+('rbac:manage_roles', 'Manage roles in RBAC'),
+('card:view_all', 'Allows Viewing User's cards'),
+('card:manage', 'Manage User's cards'),
+('analytics:view', 'View Analytics'),
+('transactions:export', 'Export Transaction history')
+GO
+
+INSERT INTO RolePermissions (RoleID, PermissionID) 
+SELECT r.RoleID, p.PermissionID 
+FROM Roles r
+CROSS JOIN Permissions p
+WHERE r.RoleName = 'SuperAdmin'; -- SuperAdmin gets all permissions
+GO
