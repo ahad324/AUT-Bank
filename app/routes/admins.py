@@ -1,7 +1,9 @@
+# app/routes/admins.py
 from datetime import date, datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
+from app.core.rate_limiter import limiter
 
 # Controllers
 from app.controllers.admin_controller import (
@@ -35,14 +37,16 @@ from app.core.rbac import check_permission
 
 # Models
 from app.models.admin import Admin
+import os
 
 router = APIRouter()
 
 
-# <============ Temporary Route ============>
 @router.post("/bootstrap-admin", response_model=BaseResponse)
-def bootstrap_admin(admin: AdminCreate, db: Session = Depends(get_db)):
-    # Check if any admins exist
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
+def bootstrap_admin(
+    request: Request, admin: AdminCreate, db: Session = Depends(get_db)
+):
     if db.query(Admin).count() > 0:
         raise CustomHTTPException(
             status_code=403, message="Admin bootstrap only allowed when no admins exist"
@@ -50,11 +54,10 @@ def bootstrap_admin(admin: AdminCreate, db: Session = Depends(get_db)):
     return register_admin(admin, db)
 
 
-# <==========================================>
-
-
 @router.post("/register", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def register(
+    request: Request,
     admin: AdminCreate,
     current_admin: Admin = Depends(check_permission("admin:register")),
     db: Session = Depends(get_db),
@@ -63,17 +66,21 @@ def register(
 
 
 @router.post("/login", response_model=BaseResponse)
-def login(credentials: AdminLogin, db: Session = Depends(get_db)):
+@limiter.limit(os.getenv("RATE_LIMIT_LOGIN", "5/minute"))
+def login(request: Request, credentials: AdminLogin, db: Session = Depends(get_db)):
     return login_admin(credentials, db)
 
 
 @router.post("/refresh", response_model=BaseResponse)
-def refresh(token: str, db: Session = Depends(get_db)):
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def refresh(request: Request, token: str, db: Session = Depends(get_db)):
     return refresh_token(token, db, Admin, "Admin", "AdminID")
 
 
 @router.get("/analytics/summary", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def get_analytics_summary_route(
+    request: Request,
     current_admin: Admin = Depends(check_permission("analytics:view")),
     db: Session = Depends(get_db),
 ):
@@ -81,16 +88,16 @@ def get_analytics_summary_route(
 
 
 @router.get("/admins", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_all_admins(
+    request: Request,
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
-    username: Optional[str] = Query(None, description="Filter by username"),
-    email: Optional[str] = Query(None, description="Filter by email"),
-    role: Optional[str] = Query(
-        None, description="Filter by role (SuperAdmin, Manager, Auditor)"
-    ),
-    sort_by: Optional[AdminSortBy] = Query(None, description="Sort by field"),
-    order: Optional[AdminOrder] = Query(None, description="Sort order: asc or desc"),
+    username: Optional[str] = Query(None),
+    email: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    sort_by: Optional[AdminSortBy] = Query(None),
+    order: Optional[AdminOrder] = Query(None),
     current_admin: Admin = Depends(check_permission("admin:view_all")),
     db: Session = Depends(get_db),
 ):
@@ -108,7 +115,9 @@ def list_all_admins(
 
 
 @router.put("/users/toggle-user-status/{user_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def toggle_user_status(
+    request: Request,
     user_id: int,
     current_admin: Admin = Depends(check_permission("user:approve")),
     db: Session = Depends(get_db),
@@ -117,7 +126,9 @@ def toggle_user_status(
 
 
 @router.get("/users", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_users(
+    request: Request,
     page: int = 1,
     per_page: int = 10,
     username: Optional[str] = None,
@@ -147,7 +158,9 @@ def list_users(
 
 
 @router.post("/users/{user_id}/deposits", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def create_deposit_route(
+    request: Request,
     user_id: int,
     deposit: DepositCreate,
     current_admin: Admin = Depends(check_permission("deposit:manage")),
@@ -157,18 +170,20 @@ def create_deposit_route(
 
 
 @router.get("/loans", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_all_loans(
+    request: Request,
     current_admin: Admin = Depends(check_permission("loan:view_all")),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
-    loan_status: Optional[str] = Query(None, description="Filter by loan status"),
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
-    loan_type_id: Optional[int] = Query(None, description="Filter by loan type ID"),
-    start_date: Optional[date] = Query(None, description="Filter by start date"),
-    end_date: Optional[date] = Query(None, description="Filter by end date"),
-    sort_by: Optional[str] = Query("CreatedAt", description="Sort by field"),
-    order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
+    loan_status: Optional[str] = Query(None),
+    user_id: Optional[int] = Query(None),
+    loan_type_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    sort_by: Optional[str] = Query("CreatedAt"),
+    order: Optional[str] = Query("desc"),
 ):
     return get_all_loans(
         db=db,
@@ -185,9 +200,11 @@ def list_all_loans(
 
 
 @router.post("/loans/{loan_id}/approve", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def approve_or_reject_loan(
+    request: Request,
     loan_id: int,
-    new_status: str = Query(..., description="Status: Approved or Rejected"),
+    new_status: str = Query(...),
     current_admin: Admin = Depends(check_permission("loan:approve")),
     db: Session = Depends(get_db),
 ):
@@ -195,7 +212,9 @@ def approve_or_reject_loan(
 
 
 @router.put("/users/{user_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def update_user_route(
+    request: Request,
     user_id: int,
     user_update: UserUpdate,
     current_admin: Admin = Depends(check_permission("user:update")),
@@ -205,7 +224,9 @@ def update_user_route(
 
 
 @router.delete("/users/{user_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def delete_user_route(
+    request: Request,
     user_id: int,
     current_admin: Admin = Depends(check_permission("user:delete")),
     db: Session = Depends(get_db),
@@ -214,20 +235,20 @@ def delete_user_route(
 
 
 @router.get("/transactions", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_all_transactions(
+    request: Request,
     current_admin: Admin = Depends(check_permission("transaction:view_all")),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
-    transaction_type: Optional[str] = Query(
-        None, description="Filter by transaction type"
-    ),
-    transaction_status: Optional[str] = Query(None, description="Filter by status"),
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
-    start_date: Optional[date] = Query(None, description="Filter by start date"),
-    end_date: Optional[date] = Query(None, description="Filter by end date"),
-    sort_by: Optional[str] = Query("Timestamp", description="Sort by field"),
-    order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
+    transaction_type: Optional[str] = Query(None),
+    transaction_status: Optional[str] = Query(None),
+    user_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    sort_by: Optional[str] = Query("Timestamp"),
+    order: Optional[str] = Query("desc"),
 ):
     return get_all_transactions(
         db=db,
@@ -244,10 +265,12 @@ def list_all_transactions(
 
 
 @router.get("/cards", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_all_cards_route(
-    page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
+    user_id: Optional[int] = Query(None),
     current_admin: Admin = Depends(check_permission("card:view_all")),
     db: Session = Depends(get_db),
 ):
@@ -255,7 +278,9 @@ def list_all_cards_route(
 
 
 @router.put("/cards/{card_id}/block", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def block_card_route(
+    request: Request,
     card_id: int,
     current_admin: Admin = Depends(check_permission("card:manage")),
     db: Session = Depends(get_db),
@@ -264,7 +289,9 @@ def block_card_route(
 
 
 @router.put("/cards/{card_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def update_card_admin_route(
+    request: Request,
     card_id: int,
     card_update: CardUpdate,
     current_admin: Admin = Depends(check_permission("card:manage")),
@@ -274,20 +301,14 @@ def update_card_admin_route(
 
 
 @router.get("/transactions/export")
+@limiter.limit(os.getenv("RATE_LIMIT_EXPORT", "5/hour"))
 def export_transactions_route(
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
-    start_date: Optional[datetime] = Query(
-        None, description="Start date (e.g., 2025-01-01T00:00:00)"
-    ),
-    end_date: Optional[datetime] = Query(
-        None, description="End date (e.g., 2025-12-31T23:59:59)"
-    ),
-    transaction_status: Optional[str] = Query(
-        None, description="Filter by transaction status (Pending, Completed, Failed)"
-    ),
-    transaction_type: Optional[str] = Query(
-        None, description="Filter by type (Deposit, Transfer, Withdrawal)"
-    ),
+    request: Request,
+    user_id: Optional[int] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    transaction_status: Optional[str] = Query(None),
+    transaction_type: Optional[str] = Query(None),
     current_admin: Admin = Depends(check_permission("transactions:export")),
     db: Session = Depends(get_db),
 ):

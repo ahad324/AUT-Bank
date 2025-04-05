@@ -1,5 +1,5 @@
 # app/routes/rbac.py
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.rbac import check_permission
@@ -27,12 +27,16 @@ from app.controllers.rbac_controller import (
     update_role,
 )
 from typing import Union, List
+from app.core.rate_limiter import limiter
+import os
 
 router = APIRouter()
 
 
 @router.post("/roles", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def create_role_route(
+    request: Request,
     role_input: Union[RoleCreate, List[RoleCreate]],
     current_admin: Admin = Depends(check_permission("rbac:manage_roles")),
     db: Session = Depends(get_db),
@@ -41,7 +45,9 @@ def create_role_route(
 
 
 @router.get("/roles", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_roles_route(
+    request: Request,
     current_admin: Admin = Depends(check_permission("rbac:view_roles")),
     db: Session = Depends(get_db),
 ):
@@ -49,7 +55,9 @@ def list_roles_route(
 
 
 @router.post("/permissions", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def create_permission_route(
+    request: Request,
     perm_input: Union[PermissionCreate, List[PermissionCreate]],
     current_admin: Admin = Depends(check_permission("rbac:manage_permissions")),
     db: Session = Depends(get_db),
@@ -58,7 +66,9 @@ def create_permission_route(
 
 
 @router.get("/permissions", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_permissions_route(
+    request: Request,
     current_admin: Admin = Depends(check_permission("rbac:view_permissions")),
     db: Session = Depends(get_db),
 ):
@@ -66,7 +76,9 @@ def list_permissions_route(
 
 
 @router.post("/role-permissions", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def assign_permissions_to_role_route(
+    request: Request,
     rp: RolePermissionCreate,
     current_admin: Admin = Depends(check_permission("rbac:manage_role_permissions")),
     db: Session = Depends(get_db),
@@ -75,7 +87,9 @@ def assign_permissions_to_role_route(
 
 
 @router.delete("/role-permissions", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def remove_permissions_from_role_route(
+    request: Request,
     rp_remove: RolePermissionRemove,
     current_admin: Admin = Depends(check_permission("rbac:manage_role_permissions")),
     db: Session = Depends(get_db),
@@ -84,7 +98,9 @@ def remove_permissions_from_role_route(
 
 
 @router.get("/roles/{role_id}/permissions", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_role_permissions_route(
+    request: Request,
     role_id: int,
     current_admin: Admin = Depends(check_permission("rbac:view_roles")),
     db: Session = Depends(get_db),
@@ -93,7 +109,9 @@ def list_role_permissions_route(
 
 
 @router.put("/roles/{role_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def update_role_route(
+    request: Request,
     role_id: int,
     role_update: RoleUpdate,
     current_admin: Admin = Depends(check_permission("rbac:manage_roles")),
@@ -103,7 +121,9 @@ def update_role_route(
 
 
 @router.delete("/roles/{role_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def delete_role_route(
+    request: Request,
     role_id: int,
     current_admin: Admin = Depends(check_permission("rbac:manage_roles")),
     db: Session = Depends(get_db),
@@ -112,7 +132,9 @@ def delete_role_route(
 
 
 @router.put("/permissions/{permission_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def update_permission_route(
+    request: Request,
     permission_id: int,
     perm_update: PermissionUpdate,
     current_admin: Admin = Depends(check_permission("rbac:manage_permissions")),
@@ -122,7 +144,9 @@ def update_permission_route(
 
 
 @router.delete("/permissions/{permission_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def delete_permission_route(
+    request: Request,
     permission_id: int,
     current_admin: Admin = Depends(check_permission("rbac:manage_permissions")),
     db: Session = Depends(get_db),

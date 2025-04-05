@@ -1,7 +1,9 @@
+# app/routes/users.py
 from datetime import date, datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
+from app.core.rate_limiter import limiter
 
 # Controllers
 from app.controllers.cards.users import (
@@ -20,7 +22,6 @@ from app.controllers.user_controller import (
     update_user_password,
     get_user_analytics_summary,
 )
-
 from app.controllers.loans.users import (
     apply_loan,
     get_loan_types,
@@ -48,27 +49,33 @@ from app.models.user import User
 from app.core.database import get_db
 from app.core.schemas import BaseResponse, PaginatedResponse
 from app.core.auth import get_current_user, refresh_token
+import os
 
 router = APIRouter()
 
 
 @router.post("/register", response_model=BaseResponse)
-def register(user: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     return register_user(user, db)
 
 
 @router.post("/login", response_model=BaseResponse)
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit(os.getenv("RATE_LIMIT_LOGIN", "5/minute"))
+def login(request: Request, credentials: UserLogin, db: Session = Depends(get_db)):
     return login_user(credentials, db)
 
 
 @router.post("/refresh", response_model=BaseResponse)
-def refresh(token: str, db: Session = Depends(get_db)):
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def refresh(request: Request, token: str, db: Session = Depends(get_db)):
     return refresh_token(token, db, User, "User", "UserID")
 
 
 @router.get("/analytics/summary", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def get_user_analytics_summary_route(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -76,18 +83,18 @@ def get_user_analytics_summary_route(
 
 
 @router.get("/transactions", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_user_transactions(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     params: PaginationParams = Depends(),
-    transaction_type: Optional[str] = Query(
-        None, description="Filter by transaction type"
-    ),
-    transaction_status: Optional[str] = Query(None, description="Filter by status"),
-    start_date: Optional[date] = Query(None, description="Filter by start date"),
-    end_date: Optional[date] = Query(None, description="Filter by end date"),
-    sort_by: Optional[str] = Query("Timestamp", description="Sort by field"),
-    order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
+    transaction_type: Optional[str] = Query(None),
+    transaction_status: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    sort_by: Optional[str] = Query("Timestamp"),
+    order: Optional[str] = Query("desc"),
 ):
     return get_user_transactions(
         user_id=current_user.UserID,
@@ -104,7 +111,9 @@ def list_user_transactions(
 
 
 @router.post("/transfers", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def create_transfer_route(
+    request: Request,
     transfer: TransferCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -113,9 +122,11 @@ def create_transfer_route(
 
 
 @router.get("/cards", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_cards_route(
-    page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -123,7 +134,9 @@ def list_cards_route(
 
 
 @router.post("/cards", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def create_card_route(
+    request: Request,
     card: CardCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -132,7 +145,9 @@ def create_card_route(
 
 
 @router.put("/cards/{card_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def update_card_route(
+    request: Request,
     card_id: int,
     card_update: CardUpdate,
     current_user: User = Depends(get_current_user),
@@ -142,7 +157,9 @@ def update_card_route(
 
 
 @router.delete("/cards/{card_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def delete_card_route(
+    request: Request,
     card_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -151,7 +168,9 @@ def delete_card_route(
 
 
 @router.post("/loans/apply", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def apply_for_loan(
+    request: Request,
     loan: LoanApply,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -160,14 +179,19 @@ def apply_for_loan(
 
 
 @router.get("/loans/types", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_loan_types(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     return get_loan_types(db)
 
 
 @router.post("/loans/payments", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def record_loan_payment(
+    request: Request,
     payment: LoanPaymentCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -176,14 +200,16 @@ def record_loan_payment(
 
 
 @router.get("/loans", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_user_loans(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
-    status: Optional[str] = Query(None, description="Filter by loan status"),
-    sort_by: Optional[str] = Query("CreatedAt", description="Sort by field"),
-    order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
+    status: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("CreatedAt"),
+    order: Optional[str] = Query("desc"),
 ):
     return get_user_loans(
         current_user.UserID, db, page, per_page, status, sort_by, order
@@ -191,7 +217,9 @@ def list_user_loans(
 
 
 @router.get("/loans/{loan_id}/payments", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_loan_payments(
+    request: Request,
     loan_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -202,7 +230,9 @@ def list_loan_payments(
 
 
 @router.put("/me", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def update_current_user_route(
+    request: Request,
     user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -211,7 +241,9 @@ def update_current_user_route(
 
 
 @router.put("/me/password", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def update_user_password_route(
+    request: Request,
     password_update: UserPasswordUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -220,19 +252,13 @@ def update_user_password_route(
 
 
 @router.get("/transactions/export")
+@limiter.limit(os.getenv("RATE_LIMIT_EXPORT", "5/hour"))
 def export_user_transactions_route(
-    start_date: Optional[datetime] = Query(
-        None, description="Start date (e.g., 2025-01-01T00:00:00)"
-    ),
-    end_date: Optional[datetime] = Query(
-        None, description="End date (e.g., 2025-12-31T23:59:59)"
-    ),
-    transaction_status: Optional[str] = Query(
-        None, description="Filter by transaction status (Pending, Completed, Failed)"
-    ),
-    transaction_type: Optional[str] = Query(
-        None, description="Filter by type (Deposit, Transfer, Withdrawal)"
-    ),
+    request: Request,
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    transaction_status: Optional[str] = Query(None),
+    transaction_type: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
