@@ -13,6 +13,9 @@ from typing import Optional
 # Singleton Redis client
 redis_client = None
 
+# Load cache TTL from environment (default to 300 seconds)
+CACHE_TTL = int(os.getenv("REDIS_CACHE_TTL", "300"))
+
 
 def get_redis_client() -> Redis:
     global redis_client

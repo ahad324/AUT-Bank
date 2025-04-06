@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.core.rate_limiter import limiter, custom_rate_limit_handler
 from slowapi.errors import RateLimitExceeded
@@ -27,6 +28,9 @@ app = FastAPI(
         500: {"model": BaseResponse},
     },
 )
+
+# <========== Gzip Middleware ==========>
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # Compress responses > 1KB
 
 # <========== CORS Configuration ==========>
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
@@ -93,9 +97,9 @@ async def custom_http_exception_handler(request: Request, exc: CustomHTTPExcepti
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "success": False,
-            "message": exc.message,
-            "data": exc.data,
+            "success": exc.detail.get("success", False),
+            "message": exc.detail.get("message", "An error occurred"),
+            "data": exc.detail.get("data", {}),
             "status_code": exc.status_code,
         },
     )

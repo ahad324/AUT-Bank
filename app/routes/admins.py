@@ -3,7 +3,8 @@ from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
-from app.core.rate_limiter import limiter
+from app.core.rate_limiter import limiter, get_redis_client, CACHE_TTL
+import json
 
 # Controllers
 from app.controllers.admin_controller import (
@@ -84,7 +85,22 @@ def get_analytics_summary_route(
     current_admin: Admin = Depends(check_permission("analytics:view")),
     db: Session = Depends(get_db),
 ):
-    return get_analytics_summary(db)
+    # Cache key based on endpoint and admin ID (since it's admin-specific)
+    cache_key = f"analytics:summary:admin:{current_admin.AdminID}"
+
+    redis = get_redis_client()
+
+    # Try to fetch from cache
+    cached = redis.get(cache_key)
+    if cached:
+        return BaseResponse(**json.loads(cached))
+
+    # Fetch from database if not cached
+    result = get_analytics_summary(db)
+
+    # Cache the result
+    redis.setex(cache_key, CACHE_TTL, json.dumps(result))
+    return result
 
 
 @router.get("/admins", response_model=PaginatedResponse)

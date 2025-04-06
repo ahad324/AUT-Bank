@@ -3,7 +3,6 @@ from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
-from app.core.rate_limiter import limiter
 
 # Controllers
 from app.controllers.cards.users import (
@@ -49,6 +48,8 @@ from app.models.user import User
 from app.core.database import get_db
 from app.core.schemas import BaseResponse, PaginatedResponse
 from app.core.auth import get_current_user, refresh_token
+from app.core.rate_limiter import limiter, get_redis_client, CACHE_TTL
+import json
 import os
 
 router = APIRouter()
@@ -96,7 +97,22 @@ def list_user_transactions(
     sort_by: Optional[str] = Query("Timestamp"),
     order: Optional[str] = Query("desc"),
 ):
-    return get_user_transactions(
+    # Generate a unique cache key based on user and query parameters
+    cache_key = (
+        f"transactions:user:{current_user.UserID}:page:{params.page}:per_page:{params.per_page}"
+        f":type:{transaction_type or ''}:status:{transaction_status or ''}"
+        f":start:{start_date or ''}:end:{end_date or ''}:sort:{sort_by}:order:{order}"
+    )
+
+    redis = get_redis_client()
+
+    # Try to fetch from cache
+    cached = redis.get(cache_key)
+    if cached:
+        return PaginatedResponse(**json.loads(cached))
+
+    # Fetch from database if not cached
+    result = get_user_transactions(
         user_id=current_user.UserID,
         db=db,
         page=params.page,
@@ -108,6 +124,10 @@ def list_user_transactions(
         sort_by=sort_by,
         order=order,
     )
+
+    # Cache the result
+    redis.setex(cache_key, CACHE_TTL, json.dumps(result.model_dump()))
+    return result
 
 
 @router.post("/transfers", response_model=BaseResponse)
