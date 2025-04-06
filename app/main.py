@@ -7,9 +7,9 @@ from fastapi.exceptions import HTTPException as FastAPIHTTPException
 
 from app.core.rate_limiter import limiter, custom_rate_limit_handler
 from slowapi.errors import RateLimitExceeded
-from .core.exceptions import CustomHTTPException
-from .core.schemas import BaseResponse
-from .routes import admins, users, atm, rbac
+from app.core.exceptions import CustomHTTPException
+from app.core.schemas import BaseResponse
+from app.routes import admins, users, atm, rbac
 from app.core.database import get_db
 
 app = FastAPI(
