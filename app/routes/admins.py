@@ -3,7 +3,16 @@ from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
-from app.core.rate_limiter import limiter, get_redis_client, CACHE_TTL
+from app.core.rate_limiter import (
+    limiter,
+    get_redis_client,
+    CACHE_TTL_SHORT,
+    CACHE_TTL_MEDIUM,
+    get_cache_key,
+    get_from_cache,
+    set_to_cache,
+    invalidate_cache,
+)
 import json
 
 # Controllers
@@ -63,7 +72,9 @@ def register(
     current_admin: Admin = Depends(check_permission("admin:register")),
     db: Session = Depends(get_db),
 ):
-    return register_admin(admin, db)
+    result = register_admin(admin, db)
+    invalidate_cache("admins:")  # Invalidate admin list cache
+    return result
 
 
 @router.post("/login", response_model=BaseResponse)
@@ -85,21 +96,12 @@ def get_analytics_summary_route(
     current_admin: Admin = Depends(check_permission("analytics:view")),
     db: Session = Depends(get_db),
 ):
-    # Cache key based on endpoint and admin ID (since it's admin-specific)
-    cache_key = f"analytics:summary:admin:{current_admin.AdminID}"
-
-    redis = get_redis_client()
-
-    # Try to fetch from cache
-    cached = redis.get(cache_key)
+    cache_key = get_cache_key(request, "analytics:summary", current_admin.AdminID)
+    cached = get_from_cache(cache_key)
     if cached:
-        return BaseResponse(**json.loads(cached))
-
-    # Fetch from database if not cached
+        return BaseResponse(**cached)
     result = get_analytics_summary(db)
-
-    # Cache the result
-    redis.setex(cache_key, CACHE_TTL, json.dumps(result))
+    set_to_cache(cache_key, result, CACHE_TTL_SHORT)  # 5 min TTL for analytics
     return result
 
 
@@ -117,7 +119,20 @@ def list_all_admins(
     current_admin: Admin = Depends(check_permission("admin:view_all")),
     db: Session = Depends(get_db),
 ):
-    return get_all_admins(
+    params = {
+        "page": page,
+        "per_page": per_page,
+        "username": username,
+        "email": email,
+        "role": role,
+        "sort_by": sort_by,
+        "order": order,
+    }
+    cache_key = get_cache_key(request, "admins", current_admin.AdminID, params)
+    cached = get_from_cache(cache_key)
+    if cached:
+        return PaginatedResponse(**cached)
+    result = get_all_admins(
         db,
         current_admin_id=current_admin.AdminID,
         page=page,
@@ -128,6 +143,10 @@ def list_all_admins(
         sort_by=sort_by,
         order=order,
     )
+    set_to_cache(
+        cache_key, result.model_dump(), CACHE_TTL_MEDIUM
+    )  # 1 hr TTL for admin list
+    return result
 
 
 @router.put("/users/toggle-user-status/{user_id}", response_model=BaseResponse)
@@ -138,7 +157,10 @@ def toggle_user_status(
     current_admin: Admin = Depends(check_permission("user:approve")),
     db: Session = Depends(get_db),
 ):
-    return toggle_user_active_status(user_id, current_admin.AdminID, db)
+    result = toggle_user_active_status(user_id, current_admin.AdminID, db)
+    invalidate_cache(f"users:user:{user_id}")  # Invalidate user-specific cache
+    invalidate_cache("users:")  # Invalidate user list cache
+    return result
 
 
 @router.get("/users", response_model=PaginatedResponse)
@@ -158,7 +180,23 @@ def list_users(
     current_admin: Admin = Depends(check_permission("user:view_all")),
     db: Session = Depends(get_db),
 ):
-    return get_all_users(
+    params = {
+        "page": page,
+        "per_page": per_page,
+        "username": username,
+        "email": email,
+        "isactive": isactive,
+        "account_type": account_type,
+        "balance_min": balance_min,
+        "balance_max": balance_max,
+        "sort_by": sort_by,
+        "order": order,
+    }
+    cache_key = get_cache_key(request, "users", current_admin.AdminID, params)
+    cached = get_from_cache(cache_key)
+    if cached:
+        return PaginatedResponse(**cached)
+    result = get_all_users(
         page,
         per_page,
         username,
@@ -171,6 +209,8 @@ def list_users(
         order,
         db,
     )
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL for user list
+    return result
 
 
 @router.post("/users/{user_id}/deposits", response_model=BaseResponse)
@@ -182,7 +222,10 @@ def create_deposit_route(
     current_admin: Admin = Depends(check_permission("deposit:manage")),
     db: Session = Depends(get_db),
 ):
-    return create_deposit(user_id, current_admin.AdminID, deposit, db)
+    result = create_deposit(user_id, current_admin.AdminID, deposit, db)
+    invalidate_cache(f"users:user:{user_id}")  # Invalidate user-specific cache
+    invalidate_cache("analytics:summary")  # Invalidate analytics cache
+    return result
 
 
 @router.get("/loans", response_model=PaginatedResponse)
@@ -201,18 +244,35 @@ def list_all_loans(
     sort_by: Optional[str] = Query("CreatedAt"),
     order: Optional[str] = Query("desc"),
 ):
-    return get_all_loans(
-        db=db,
-        page=page,
-        per_page=per_page,
-        loan_status=loan_status,
-        user_id=user_id,
-        loan_type_id=loan_type_id,
-        start_date=start_date,
-        end_date=end_date,
-        sort_by=sort_by,
-        order=order,
+    params = {
+        "page": page,
+        "per_page": per_page,
+        "loan_status": loan_status,
+        "user_id": user_id,
+        "loan_type_id": loan_type_id,
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+        "sort_by": sort_by,
+        "order": order,
+    }
+    cache_key = get_cache_key(request, "loans", current_admin.AdminID, params)
+    cached = get_from_cache(cache_key)
+    if cached:
+        return PaginatedResponse(**cached)
+    result = get_all_loans(
+        db,
+        page,
+        per_page,
+        loan_status,
+        user_id,
+        loan_type_id,
+        start_date,
+        end_date,
+        sort_by,
+        order,
     )
+    set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)  # 1 hr TTL for loans
+    return result
 
 
 @router.post("/loans/{loan_id}/approve", response_model=BaseResponse)
@@ -224,7 +284,10 @@ def approve_or_reject_loan(
     current_admin: Admin = Depends(check_permission("loan:approve")),
     db: Session = Depends(get_db),
 ):
-    return approve_loan(loan_id, new_status, current_admin, db)
+    result = approve_loan(loan_id, new_status, current_admin, db)
+    invalidate_cache("loans:")  # Invalidate loan list cache
+    invalidate_cache("analytics:summary")  # Invalidate analytics cache
+    return result
 
 
 @router.put("/users/{user_id}", response_model=BaseResponse)
@@ -236,7 +299,10 @@ def update_user_route(
     current_admin: Admin = Depends(check_permission("user:update")),
     db: Session = Depends(get_db),
 ):
-    return update_user(user_id, user_update, db)
+    result = update_user(user_id, user_update, db)
+    invalidate_cache(f"users:user:{user_id}")
+    invalidate_cache("users:")
+    return result
 
 
 @router.delete("/users/{user_id}", response_model=BaseResponse)
@@ -247,7 +313,10 @@ def delete_user_route(
     current_admin: Admin = Depends(check_permission("user:delete")),
     db: Session = Depends(get_db),
 ):
-    return delete_user(user_id, db)
+    result = delete_user(user_id, db)
+    invalidate_cache(f"users:user:{user_id}")
+    invalidate_cache("users:")
+    return result
 
 
 @router.get("/transactions", response_model=PaginatedResponse)
@@ -266,18 +335,37 @@ def list_all_transactions(
     sort_by: Optional[str] = Query("Timestamp"),
     order: Optional[str] = Query("desc"),
 ):
-    return get_all_transactions(
-        db=db,
-        page=page,
-        per_page=per_page,
-        transaction_type=transaction_type,
-        transaction_status=transaction_status,
-        user_id=user_id,
-        start_date=start_date,
-        end_date=end_date,
-        sort_by=sort_by,
-        order=order,
+    params = {
+        "page": page,
+        "per_page": per_page,
+        "transaction_type": transaction_type,
+        "transaction_status": transaction_status,
+        "user_id": user_id,
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+        "sort_by": sort_by,
+        "order": order,
+    }
+    cache_key = get_cache_key(request, "transactions", current_admin.AdminID, params)
+    cached = get_from_cache(cache_key)
+    if cached:
+        return PaginatedResponse(**cached)
+    result = get_all_transactions(
+        db,
+        page,
+        per_page,
+        transaction_type,
+        transaction_status,
+        user_id,
+        start_date,
+        end_date,
+        sort_by,
+        order,
     )
+    set_to_cache(
+        cache_key, result.model_dump(), CACHE_TTL_SHORT
+    )  # 5 min TTL for transactions
+    return result
 
 
 @router.get("/cards", response_model=PaginatedResponse)
@@ -290,7 +378,14 @@ def list_all_cards_route(
     current_admin: Admin = Depends(check_permission("card:view_all")),
     db: Session = Depends(get_db),
 ):
-    return list_all_cards(db, page, per_page, user_id)
+    params = {"page": page, "per_page": per_page, "user_id": user_id}
+    cache_key = get_cache_key(request, "cards", current_admin.AdminID, params)
+    cached = get_from_cache(cache_key)
+    if cached:
+        return PaginatedResponse(**cached)
+    result = list_all_cards(db, page, per_page, user_id)
+    set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)  # 1 hr TTL for cards
+    return result
 
 
 @router.put("/cards/{card_id}/block", response_model=BaseResponse)
@@ -301,7 +396,9 @@ def block_card_route(
     current_admin: Admin = Depends(check_permission("card:manage")),
     db: Session = Depends(get_db),
 ):
-    return block_card(card_id, db)
+    result = block_card(card_id, db)
+    invalidate_cache("cards:")
+    return result
 
 
 @router.put("/cards/{card_id}", response_model=BaseResponse)
@@ -313,7 +410,9 @@ def update_card_admin_route(
     current_admin: Admin = Depends(check_permission("card:manage")),
     db: Session = Depends(get_db),
 ):
-    return update_card_admin(card_id, card_update, db)
+    result = update_card_admin(card_id, card_update, db)
+    invalidate_cache("cards:")
+    return result
 
 
 @router.get("/transactions/export")

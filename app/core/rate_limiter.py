@@ -1,4 +1,3 @@
-# app/core/rate_limiter.py
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -8,13 +7,20 @@ from app.models.user import User
 from app.models.admin import Admin
 import os
 from redis import Redis
-from typing import Optional
+from typing import Optional, Any
+import json
 
 # Singleton Redis client
 redis_client = None
 
-# Load cache TTL from environment (default to 300 seconds)
-CACHE_TTL = int(os.getenv("REDIS_CACHE_TTL", "300"))
+# Load cache TTLs from environment with defaults
+CACHE_TTL_SHORT = int(
+    os.getenv("REDIS_CACHE_TTL_SHORT", "300")
+)  # 5 min for volatile data
+CACHE_TTL_MEDIUM = int(
+    os.getenv("REDIS_CACHE_TTL_MEDIUM", "3600")
+)  # 1 hr for semi-static
+CACHE_TTL_LONG = int(os.getenv("REDIS_CACHE_TTL_LONG", "86400"))  # 24 hr for static
 
 
 def get_redis_client() -> Redis:
@@ -29,15 +35,7 @@ def get_redis_client() -> Redis:
 
 # Custom key function for rate limiting
 def get_rate_limit_key(request: Request) -> str:
-    """
-    Determines the rate limit key based on authentication status:
-    - Authenticated users: 'user:<UserID>'
-    - Authenticated admins: 'admin:<AdminID>'
-    - Unauthenticated: 'ip:<client_ip>'
-    """
     auth_header = request.headers.get("Authorization")
-
-    # Check for authenticated user
     if request.url.path.startswith("/api/v1/users") and auth_header:
         try:
             token = auth_header.split("Bearer ")[1]
@@ -45,8 +43,6 @@ def get_rate_limit_key(request: Request) -> str:
             return f"user:{user.UserID}"
         except (IndexError, AttributeError, HTTPException):
             pass
-
-    # Check for authenticated admin
     elif request.url.path.startswith("/api/v1/admins") and auth_header:
         try:
             token = auth_header.split("Bearer ")[1]
@@ -54,40 +50,68 @@ def get_rate_limit_key(request: Request) -> str:
             return f"admin:{admin.AdminID}"
         except (IndexError, AttributeError, HTTPException):
             pass
-
-    # Fallback to IP for public endpoints
     return f"ip:{get_remote_address(request)}"
 
 
-# Initialize Limiter with Redis backend
 limiter = Limiter(
     key_func=get_rate_limit_key,
     storage_uri=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    default_limits=["100/hour"],  # Fallback for unannotated endpoints
+    default_limits=["100/hour"],
     enabled=True,
 )
 
 
-# Custom handler for 429 responses
 async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    """
-    Custom handler for rate limit exceeded responses.
-    Raises an HTTPException with retry-after time from Redis TTL.
-    """
     key = get_rate_limit_key(request)
     redis = get_redis_client()
-    ttl = redis.ttl(f"{key}:rate_limit")  # Get TTL
-    retry_after = ttl if ttl > 0 else 60  # Use TTL if positive, else default to 60
+    ttl = redis.ttl(f"{key}:rate_limit") or 60
     raise HTTPException(
         status_code=429,
         detail={
             "success": False,
             "message": "Too many requests. Please try again later.",
-            "data": {"retry_after": retry_after},
+            "data": {"retry_after": ttl},
         },
-        headers={"Retry-After": str(retry_after)},
+        headers={"Retry-After": str(ttl)},
     )
 
 
 def get_limiter() -> Limiter:
     return limiter
+
+
+# Caching Utilities
+def get_cache_key(
+    request: Request, endpoint: str, user_id: Optional[int] = None, params: dict = None
+) -> str:
+    """Generate a unique cache key based on endpoint, user, and query params."""
+    base = f"{endpoint}"
+    if user_id:
+        base += f":user:{user_id}"
+    if params:
+        param_str = ":".join(
+            f"{k}={v}" for k, v in sorted(params.items()) if v is not None
+        )
+        base += f":{param_str}"
+    return base
+
+
+def get_from_cache(key: str) -> Optional[Any]:
+    """Retrieve data from Redis cache."""
+    redis = get_redis_client()
+    cached = redis.get(key)
+    return json.loads(cached) if cached else None
+
+
+def set_to_cache(key: str, value: Any, ttl: int) -> None:
+    """Store data in Redis cache with specified TTL."""
+    redis = get_redis_client()
+    redis.setex(key, ttl, json.dumps(value))
+
+
+def invalidate_cache(pattern: str) -> None:
+    """Invalidate cache keys matching a pattern (e.g., 'users:*')."""
+    redis = get_redis_client()
+    keys = redis.keys(f"{pattern}*")
+    if keys:
+        redis.delete(*keys)

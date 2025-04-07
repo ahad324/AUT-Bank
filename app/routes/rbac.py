@@ -27,7 +27,14 @@ from app.controllers.rbac_controller import (
     update_role,
 )
 from typing import Union, List
-from app.core.rate_limiter import limiter
+from app.core.rate_limiter import (
+    limiter,
+    CACHE_TTL_LONG,
+    get_cache_key,
+    get_from_cache,
+    set_to_cache,
+    invalidate_cache,
+)
 import os
 
 router = APIRouter()
@@ -41,7 +48,9 @@ def create_role_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_roles")),
     db: Session = Depends(get_db),
 ):
-    return create_role(role_input, db)
+    result = create_role(role_input, db)
+    invalidate_cache("roles:")
+    return result
 
 
 @router.get("/roles", response_model=BaseResponse)
@@ -51,7 +60,13 @@ def list_roles_route(
     current_admin: Admin = Depends(check_permission("rbac:view_roles")),
     db: Session = Depends(get_db),
 ):
-    return list_roles(db)
+    cache_key = get_cache_key(request, "roles")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = list_roles(db)
+    set_to_cache(cache_key, result, CACHE_TTL_LONG)  # 24 hr TTL
+    return result
 
 
 @router.post("/permissions", response_model=BaseResponse)
@@ -62,7 +77,9 @@ def create_permission_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_permissions")),
     db: Session = Depends(get_db),
 ):
-    return create_permission(perm_input, db)
+    result = create_permission(perm_input, db)
+    invalidate_cache("permissions:")
+    return result
 
 
 @router.get("/permissions", response_model=BaseResponse)
@@ -72,7 +89,13 @@ def list_permissions_route(
     current_admin: Admin = Depends(check_permission("rbac:view_permissions")),
     db: Session = Depends(get_db),
 ):
-    return list_permissions(db)
+    cache_key = get_cache_key(request, "permissions")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = list_permissions(db)
+    set_to_cache(cache_key, result, CACHE_TTL_LONG)  # 24 hr TTL
+    return result
 
 
 @router.post("/role-permissions", response_model=BaseResponse)
@@ -83,7 +106,9 @@ def assign_permissions_to_role_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_role_permissions")),
     db: Session = Depends(get_db),
 ):
-    return assign_permissions_to_role(rp, db)
+    result = assign_permissions_to_role(rp, db)
+    invalidate_cache(f"role_permissions:{rp.RoleID}")
+    return result
 
 
 @router.delete("/role-permissions", response_model=BaseResponse)
@@ -94,7 +119,9 @@ def remove_permissions_from_role_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_role_permissions")),
     db: Session = Depends(get_db),
 ):
-    return remove_permissions_from_role(rp_remove, db)
+    result = remove_permissions_from_role(rp_remove, db)
+    invalidate_cache(f"role_permissions:{rp_remove.RoleID}")
+    return result
 
 
 @router.get("/roles/{role_id}/permissions", response_model=BaseResponse)
@@ -105,7 +132,13 @@ def list_role_permissions_route(
     current_admin: Admin = Depends(check_permission("rbac:view_roles")),
     db: Session = Depends(get_db),
 ):
-    return list_role_permissions(role_id, db)
+    cache_key = get_cache_key(request, f"role_permissions:{role_id}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = list_role_permissions(role_id, db)
+    set_to_cache(cache_key, result, CACHE_TTL_LONG)  # 24 hr TTL
+    return result
 
 
 @router.put("/roles/{role_id}", response_model=BaseResponse)
@@ -117,7 +150,10 @@ def update_role_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_roles")),
     db: Session = Depends(get_db),
 ):
-    return update_role(role_id, role_update, db)
+    result = update_role(role_id, role_update, db)
+    invalidate_cache("roles:")
+    invalidate_cache(f"role_permissions:{role_id}")
+    return result
 
 
 @router.delete("/roles/{role_id}", response_model=BaseResponse)
@@ -128,7 +164,10 @@ def delete_role_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_roles")),
     db: Session = Depends(get_db),
 ):
-    return delete_role(role_id, db)
+    result = delete_role(role_id, db)
+    invalidate_cache("roles:")
+    invalidate_cache(f"role_permissions:{role_id}")
+    return result
 
 
 @router.put("/permissions/{permission_id}", response_model=BaseResponse)
@@ -140,7 +179,9 @@ def update_permission_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_permissions")),
     db: Session = Depends(get_db),
 ):
-    return update_permission(permission_id, perm_update, db)
+    result = update_permission(permission_id, perm_update, db)
+    invalidate_cache("permissions:")
+    return result
 
 
 @router.delete("/permissions/{permission_id}", response_model=BaseResponse)
@@ -151,4 +192,6 @@ def delete_permission_route(
     current_admin: Admin = Depends(check_permission("rbac:manage_permissions")),
     db: Session = Depends(get_db),
 ):
-    return delete_permission(permission_id, db)
+    result = delete_permission(permission_id, db)
+    invalidate_cache("permissions:")
+    return result
