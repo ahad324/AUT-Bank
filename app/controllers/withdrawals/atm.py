@@ -11,9 +11,15 @@ from app.core.exceptions import CustomHTTPException
 from app.core.auth import pwd_context
 from fastapi import status
 import uuid
+from fastapi import BackgroundTasks
+from app.core.event_emitter import emit_event
 
 
-def create_withdrawal(withdrawal: WithdrawalCreate, db: Session):
+async def create_withdrawal(
+    withdrawal: WithdrawalCreate, 
+    db: Session,
+    background_tasks: BackgroundTasks
+):
     card = (
         db.query(Card)
         .filter(Card.CardNumber == withdrawal.CardNumber)
@@ -74,6 +80,21 @@ def create_withdrawal(withdrawal: WithdrawalCreate, db: Session):
         db.add(new_withdrawal)
         db.commit()
         db.refresh(new_withdrawal)
+
+        # Emit real-time notification
+        await emit_event(
+            "atm_withdrawal_completed",
+            {
+                "withdrawal_id": new_withdrawal.WithdrawalID,
+                "amount": float(amount),
+                "balance": float(user.Balance),
+                "reference": new_withdrawal.ReferenceNumber,
+                "timestamp": str(new_withdrawal.Timestamp)
+            },
+            user_id=user.UserID,
+            background_tasks=background_tasks
+        )
+
         return success_response(
             message="Withdrawal completed successfully",
             data=WithdrawalResponse.model_validate(new_withdrawal).model_dump(),

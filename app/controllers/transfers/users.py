@@ -1,3 +1,4 @@
+from fastapi import status, BackgroundTasks
 from sqlalchemy.orm import Session
 from decimal import Decimal
 from app.models.transfer import Transfer
@@ -5,11 +6,11 @@ from app.models.user import User
 from app.schemas.transfer_schema import TransferCreate, TransferResponse
 from app.core.responses import success_response
 from app.core.exceptions import CustomHTTPException
-from fastapi import status
+from app.core.event_emitter import emit_event
 import uuid
 
 
-def create_transfer(sender_id: int, transfer: TransferCreate, db: Session):
+async def create_transfer(sender_id: int, transfer: TransferCreate, db: Session,background_tasks:BackgroundTasks):
     sender = db.query(User).filter(User.UserID == sender_id).with_for_update().first()
     if not sender:
         raise CustomHTTPException(
@@ -67,6 +68,37 @@ def create_transfer(sender_id: int, transfer: TransferCreate, db: Session):
         db.add(new_transfer)
         db.commit()
         db.refresh(new_transfer)
+
+        # Emit notification to sender
+        await emit_event(
+            "money_sent",
+            {
+                "transfer_id": new_transfer.TransferID,
+                "amount": float(amount),
+                "receiver_id": receiver.UserID,
+                "balance": float(sender.Balance),
+                "reference": new_transfer.ReferenceNumber,
+                "timestamp": str(new_transfer.Timestamp)
+            },
+            user_id=sender_id,
+            background_tasks=background_tasks
+        )
+
+        # Emit notification to receiver
+        await emit_event(
+            "money_received",
+            {
+                "transfer_id": new_transfer.TransferID,
+                "amount": float(amount),
+                "sender_id": sender_id,
+                "balance": float(receiver.Balance),
+                "reference": new_transfer.ReferenceNumber,
+                "timestamp": str(new_transfer.Timestamp)
+            },
+            user_id=receiver.UserID,
+            background_tasks=background_tasks
+        )
+
         return success_response(
             message="Transfer completed successfully",
             data=TransferResponse.model_validate(new_transfer).model_dump(),

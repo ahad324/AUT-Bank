@@ -3,71 +3,283 @@
   <head>
     <meta charset="UTF-8" />
     <title>AUT Bank WebSocket Test</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+      :root {
+        --primary-color: #2563eb;
+        --success-color: #10b981;
+        --error-color: #ef4444;
+        --bg-color: #f8fafc;
+        --panel-bg: #ffffff;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: Arial, sans-serif;
-        max-width: 800px;
-        margin: 20px auto;
-        padding: 20px;
+        font-family: 'Inter', sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-primary);
+        line-height: 1.5;
+        padding: 2rem;
       }
-      .container {
+
+      .header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+      }
+
+      .controls {
+        background: var(--panel-bg);
+        padding: 1.5rem;
+        border-radius: 1rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        margin-bottom: 2rem;
+        transition: transform 0.2s ease;
+      }
+
+      .controls:hover {
+        transform: translateY(-2px);
+      }
+
+      .checkbox-group {
         display: flex;
-        gap: 20px;
+        gap: 2rem;
+        justify-content: center;
       }
-      .panel {
-        flex: 1;
-        border: 1px solid #ccc;
-        padding: 15px;
-        border-radius: 5px;
+
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
       }
-      .notification {
-        padding: 10px;
-        margin: 5px 0;
-        border-radius: 4px;
-        background-color: #f0f0f0;
+
+      .checkbox-label:hover {
+        background: #f1f5f9;
       }
-      .notification.user {
-        border-left: 4px solid #4caf50;
-      }
-      .notification.admin {
-        border-left: 4px solid #2196f3;
-      }
-      .status {
-        padding: 5px 10px;
-        border-radius: 3px;
-        font-size: 12px;
-      }
-      .connected {
-        background-color: #4caf50;
-        color: white;
-      }
-      .disconnected {
-        background-color: #f44336;
-        color: white;
-      }
-      input[type="text"] {
-        width: 100%;
-        padding: 8px;
-        margin: 5px 0;
-      }
-      button {
-        padding: 8px 15px;
-        background-color: #2196f3;
-        color: white;
-        border: none;
-        border-radius: 4px;
+
+      .checkbox-label input[type="checkbox"] {
+        width: 1.2rem;
+        height: 1.2rem;
+        border-radius: 0.3rem;
+        border: 2px solid var(--primary-color);
         cursor: pointer;
       }
+
+      .container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .panel {
+        background: var(--panel-bg);
+        padding: 2rem;
+        border-radius: 1rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        transition: all 0.3s ease;
+      }
+
+      .panel h2 {
+        font-size: 1.5rem;
+        margin-bottom: 1.5rem;
+        color: var(--text-primary);
+      }
+
+      .panel.hidden {
+        display: none;
+      }
+
+      .status-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .status {
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      }
+
+      .connected {
+        background-color: var(--success-color);
+        color: white;
+      }
+
+      .disconnected {
+        background-color: var(--error-color);
+        color: white;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 0.875rem;
+        margin: 0.5rem 0;
+        border: 2px solid #e2e8f0;
+        border-radius: 0.75rem;
+        font-size: 0.875rem;
+        transition: all 0.3s ease;
+        background: #f8fafc;
+      }
+
+      input[type="text"]:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      button {
+        width: 100%;
+        padding: 0.875rem;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 0.75rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        margin-top: 1rem;
+      }
+
       button:hover {
-        background-color: #1976d2;
+        background-color: #1d4ed8;
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .notification {
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0.75rem;
+        background: #f8fafc;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        border: 1px solid #e2e8f0;
+      }
+
+      .notification:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+      }
+
+      .notification.user {
+        border-left: 4px solid var(--success-color);
+      }
+
+      .notification.admin {
+        border-left: 4px solid var(--primary-color);
+      }
+
+      .notification strong {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        background: #f1f5f9;
+        border-radius: 1rem;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+      }
+
+      pre {
+        background: #f1f5f9;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        font-size: 0.875rem;
+        margin: 0.5rem 0;
+      }
+
+      small {
+        display: block;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+      }
+
+      @media (max-width: 768px) {
+        body {
+          padding: 1rem;
+        }
+        
+        .container {
+          grid-template-columns: 1fr;
+        }
+        
+        .checkbox-group {
+          flex-direction: column;
+          align-items: center;
+        }
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
       }
     </style>
   </head>
   <body>
-    <h1>AUT Bank WebSocket Test</h1>
+    <div class="header">
+      <h1>AUT Bank WebSocket Test</h1>
+    </div>
+
+    <div class="controls">
+      <div class="checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="showUser" checked onchange="togglePanel('user')" />
+          Show User Panel
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="showAdmin" checked onchange="togglePanel('admin')" />
+          Show Admin Panel
+        </label>
+      </div>
+    </div>
 
     <div class="container">
-      <div class="panel">
+      <div id="userPanel" class="panel">
         <h2>User Connection</h2>
         <div>
           Status:
@@ -79,17 +291,13 @@
         <div id="userNotifications"></div>
       </div>
 
-      <div class="panel">
+      <div id="adminPanel" class="panel">
         <h2>Admin Connection</h2>
         <div>
           Status:
           <span id="adminStatus" class="status disconnected">Disconnected</span>
         </div>
-        <input
-          type="text"
-          id="adminToken"
-          placeholder="Enter admin JWT token"
-        />
+        <input type="text" id="adminToken" placeholder="Enter admin JWT token" />
         <button onclick="connectAdmin()">Connect Admin</button>
         <h3>Admin Notifications</h3>
         <div id="adminNotifications"></div>
@@ -99,6 +307,32 @@
     <script>
       let userWs = null;
       let adminWs = null;
+
+      function togglePanel(type) {
+        const panel = document.getElementById(`${type}Panel`);
+        const checkbox = document.getElementById(`show${type.charAt(0).toUpperCase() + type.slice(1)}`);
+        const container = document.querySelector('.container');
+        
+        if (checkbox.checked) {
+          panel.classList.remove('hidden');
+        } else {
+          panel.classList.add('hidden');
+          // Disconnect websocket if panel is hidden
+          if (type === 'user' && userWs) {
+            userWs.close();
+            document.getElementById('userStatus').textContent = 'Disconnected';
+            document.getElementById('userStatus').className = 'status disconnected';
+          } else if (type === 'admin' && adminWs) {
+            adminWs.close();
+            document.getElementById('adminStatus').textContent = 'Disconnected';
+            document.getElementById('adminStatus').className = 'status disconnected';
+          }
+        }
+
+        // Adjust container layout if only one panel is visible
+        const visiblePanels = document.querySelectorAll('.panel:not(.hidden)').length;
+        container.style.justifyContent = visiblePanels === 1 ? 'center' : 'space-between';
+      }
 
       function connectUser() {
         const token = document.getElementById("userToken").value;

@@ -289,7 +289,7 @@ def list_all_loans(
 async def approve_or_reject_loan(
     request: Request,
     loan_id: int,
-    background_tasks: BackgroundTasks,  # Moved up before parameters with defaults
+    background_tasks: BackgroundTasks,
     new_status: str = Query(...),
     current_admin: Admin = Depends(check_permission("loan:approve")),
     db: Session = Depends(get_db),

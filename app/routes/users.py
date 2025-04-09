@@ -1,7 +1,7 @@
 # app/routes/users.py
 from datetime import date, datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 
 # Controllers
@@ -147,13 +147,14 @@ def list_user_transactions(
 
 @router.post("/transfers", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
-def create_transfer_route(
+async def create_transfer_route(
     request: Request,
     transfer: TransferCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    result = create_transfer(current_user.UserID, transfer, db)
+    result = await create_transfer(current_user.UserID, transfer, db, background_tasks)
     invalidate_cache(f"user_analytics:summary:user:{current_user.UserID}")
     invalidate_cache(f"user_transactions:user:{current_user.UserID}")
     return result

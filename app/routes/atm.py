@@ -1,5 +1,5 @@
 # app/routes/atm.py
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.withdrawal_schema import WithdrawalCreate
@@ -11,11 +11,12 @@ import os
 router = APIRouter()
 
 
-@router.post("/withdrawals", response_model=BaseResponse)
+@router.post("/withdraw", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
-def create_withdrawal_route(
+async def create_withdrawal_route(
     request: Request,
     withdrawal: WithdrawalCreate,
-    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
 ):
-    return create_withdrawal(withdrawal, db)
+    return await create_withdrawal(withdrawal, db, background_tasks)
