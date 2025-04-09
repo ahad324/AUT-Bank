@@ -10,7 +10,7 @@ from app.core.rate_limiter import limiter, custom_rate_limit_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.exceptions import CustomHTTPException
 from app.core.schemas import BaseResponse
-from app.routes import admins, users, atm, rbac
+from app.routes import admins, users, atm, rbac, websocket as websocket_routes
 from app.core.database import get_db
 
 app = FastAPI(
@@ -86,6 +86,12 @@ app.include_router(
     rbac.router,
     prefix="/api/v1/rbac",
     tags=["RBAC"],
+    responses={404: {"description": "Not found"}},
+)
+app.include_router(
+    websocket_routes.router,
+    prefix="/api/v1",
+    tags=["WebSocket"],
     responses={404: {"description": "Not found"}},
 )
 

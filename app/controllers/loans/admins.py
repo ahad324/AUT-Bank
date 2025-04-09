@@ -10,32 +10,64 @@ from app.core.exceptions import CustomHTTPException
 from fastapi import status
 from datetime import date
 from typing import Optional
+from fastapi import BackgroundTasks
+from app.core.event_emitter import emit_event
 
 
-def approve_loan(loan_id: int, new_status: str, admin: Admin, db: Session):
+async def approve_loan(
+    loan_id: int,
+    new_status: str,
+    current_admin: Admin,
+    db: Session,
+    background_tasks: BackgroundTasks,
+):
     loan = db.query(Loan).filter(Loan.LoanID == loan_id).first()
     if not loan:
         raise CustomHTTPException(
             status_code=status.HTTP_404_NOT_FOUND, message="Loan not found"
         )
 
-    if new_status not in ["Approved", "Rejected"]:
-        raise CustomHTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, message="Invalid status"
+    try:
+        loan.Status = new_status
+        loan.AdminID = current_admin.AdminID
+        db.commit()
+        db.refresh(loan)
+
+        # Emit notification to the loan applicant (user)
+        await emit_event(
+            "loan_status_updated",
+            {
+                "loan_id": loan_id,
+                "status": new_status,
+                "admin_id": current_admin.AdminID,
+            },
+            user_id=loan.UserID,
+            background_tasks=background_tasks,
         )
 
-    loan.LoanStatus = new_status
-    try:
-        db.commit()
+        # Emit notification to all admins
+        await emit_event(
+            "loan_processed",
+            {
+                "loan_id": loan_id,
+                "status": new_status,
+                "admin_id": current_admin.AdminID,
+                "user_id": loan.UserID,
+            },
+            broadcast=True,
+            background_tasks=background_tasks,
+        )
+
         return success_response(
-            message=f"Loan {new_status.lower()} successfully",
-            data={"LoanID": loan.LoanID},
+            message=f"Loan {new_status} successfully",
+            data={"loan_id": loan_id, "status": new_status},
         )
     except Exception as e:
         db.rollback()
         raise CustomHTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message=f"Failed to update loan: {str(e)}",
+            message="Failed to update loan status",
+            details={"error": str(e)},
         )
 
 

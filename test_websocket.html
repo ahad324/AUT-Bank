@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AUT Bank WebSocket Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+      }
+      .container {
+        display: flex;
+        gap: 20px;
+      }
+      .panel {
+        flex: 1;
+        border: 1px solid #ccc;
+        padding: 15px;
+        border-radius: 5px;
+      }
+      .notification {
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 4px;
+        background-color: #f0f0f0;
+      }
+      .notification.user {
+        border-left: 4px solid #4caf50;
+      }
+      .notification.admin {
+        border-left: 4px solid #2196f3;
+      }
+      .status {
+        padding: 5px 10px;
+        border-radius: 3px;
+        font-size: 12px;
+      }
+      .connected {
+        background-color: #4caf50;
+        color: white;
+      }
+      .disconnected {
+        background-color: #f44336;
+        color: white;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0;
+      }
+      button {
+        padding: 8px 15px;
+        background-color: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #1976d2;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AUT Bank WebSocket Test</h1>
+
+    <div class="container">
+      <div class="panel">
+        <h2>User Connection</h2>
+        <div>
+          Status:
+          <span id="userStatus" class="status disconnected">Disconnected</span>
+        </div>
+        <input type="text" id="userToken" placeholder="Enter user JWT token" />
+        <button onclick="connectUser()">Connect User</button>
+        <h3>User Notifications</h3>
+        <div id="userNotifications"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Admin Connection</h2>
+        <div>
+          Status:
+          <span id="adminStatus" class="status disconnected">Disconnected</span>
+        </div>
+        <input
+          type="text"
+          id="adminToken"
+          placeholder="Enter admin JWT token"
+        />
+        <button onclick="connectAdmin()">Connect Admin</button>
+        <h3>Admin Notifications</h3>
+        <div id="adminNotifications"></div>
+      </div>
+    </div>
+
+    <script>
+      let userWs = null;
+      let adminWs = null;
+
+      function connectUser() {
+        const token = document.getElementById("userToken").value;
+        if (!token) {
+          alert("Please enter a user token");
+          return;
+        }
+
+        if (userWs) {
+          userWs.close();
+        }
+
+        try {
+          userWs = new WebSocket(`ws://127.0.0.1:8000/api/v1/ws/user?token=${token}`);
+
+          userWs.onerror = (error) => {
+            console.error("WebSocket Error:", error);
+            document.getElementById("userStatus").textContent = "Error";
+            document.getElementById("userStatus").className =
+              "status disconnected";
+          };
+
+          userWs.onopen = () => {
+            document.getElementById("userStatus").textContent = "Connected";
+            document.getElementById("userStatus").className =
+              "status connected";
+          };
+
+          userWs.onclose = () => {
+            document.getElementById("userStatus").textContent = "Disconnected";
+            document.getElementById("userStatus").className =
+              "status disconnected";
+          };
+
+          userWs.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              const notificationDiv = document.createElement("div");
+              notificationDiv.className = "notification user";
+              notificationDiv.innerHTML = `
+                            <strong>${data.type}</strong><br>
+                            <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                            <small>${data.timestamp}</small>
+                        `;
+              document
+                .getElementById("userNotifications")
+                .prepend(notificationDiv);
+            } catch (error) {
+              console.error("Error processing message:", error);
+            }
+          };
+        } catch (error) {
+          console.error("WebSocket Connection Error:", error);
+          document.getElementById("userStatus").textContent = "Error";
+          document.getElementById("userStatus").className =
+            "status disconnected";
+        }
+      }
+
+      function connectAdmin() {
+        const token = document.getElementById("adminToken").value;
+        if (!token) {
+          alert("Please enter an admin token");
+          return;
+        }
+
+        if (adminWs) {
+          adminWs.close();
+        }
+
+        try {
+          adminWs = new WebSocket(`ws://127.0.0.1:8000/api/v1/ws/admin?token=${token}`);
+
+          adminWs.onerror = (error) => {
+            console.error("WebSocket Error:", error);
+            document.getElementById("adminStatus").textContent = "Error";
+            document.getElementById("adminStatus").className =
+              "status disconnected";
+          };
+
+          adminWs.onopen = () => {
+            document.getElementById("adminStatus").textContent = "Connected";
+            document.getElementById("adminStatus").className =
+              "status connected";
+          };
+
+          adminWs.onclose = () => {
+            document.getElementById("adminStatus").textContent = "Disconnected";
+            document.getElementById("adminStatus").className =
+              "status disconnected";
+          };
+
+          adminWs.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const notificationDiv = document.createElement("div");
+            notificationDiv.className = "notification admin";
+            notificationDiv.innerHTML = `
+                        <strong>${data.type}</strong><br>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                        <small>${data.timestamp}</small>
+                    `;
+            document
+              .getElementById("adminNotifications")
+              .prepend(notificationDiv);
+          };
+        } catch (error) {
+          console.error("WebSocket Connection Error:", error);
+          document.getElementById("adminStatus").textContent = "Error";
+          document.getElementById("adminStatus").className =
+            "status disconnected";
+        }
+      }
+
+      // Update the error handling in both connectUser and connectAdmin functions
+      userWs.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+        document.getElementById("userStatus").textContent = "Error";
+        document.getElementById("userStatus").className = "status disconnected";
+      };
+
+      adminWs.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+        document.getElementById("adminStatus").textContent = "Error";
+        document.getElementById("adminStatus").className =
+          "status disconnected";
+      };
+
+      // Remove these duplicate error handlers
+      // userWs.onerror = (error) => { ... };
+      // adminWs.onerror = (error) => { ... };
+
+      // Keep only this part
+      window.onbeforeunload = () => {
+        if (userWs) userWs.close();
+        if (adminWs) adminWs.close();
+      };
+    </script>
+  </body>
+</html>

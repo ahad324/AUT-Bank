@@ -13,6 +13,7 @@ from app.core.rate_limiter import (
     set_to_cache,
     invalidate_cache,
 )
+from fastapi import BackgroundTasks
 import json
 
 # Controllers
@@ -48,6 +49,7 @@ from app.core.rbac import check_permission
 # Models
 from app.models.admin import Admin
 import os
+from fastapi import BackgroundTasks
 
 router = APIRouter()
 
@@ -215,14 +217,21 @@ def list_users(
 
 @router.post("/users/{user_id}/deposits", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
-def create_deposit_route(
+async def create_user_deposit(
     request: Request,
     user_id: int,
     deposit: DepositCreate,
+    background_tasks: BackgroundTasks,
     current_admin: Admin = Depends(check_permission("deposit:manage")),
     db: Session = Depends(get_db),
 ):
-    result = create_deposit(user_id, current_admin.AdminID, deposit, db)
+    result = await create_deposit(
+        user_id=user_id,
+        admin_id=current_admin.AdminID,
+        deposit=deposit,
+        db=db,
+        background_tasks=background_tasks,
+    )
     invalidate_cache(f"users:user:{user_id}")  # Invalidate user-specific cache
     invalidate_cache("analytics:summary")  # Invalidate analytics cache
     return result
@@ -277,14 +286,17 @@ def list_all_loans(
 
 @router.post("/loans/{loan_id}/approve", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
-def approve_or_reject_loan(
+async def approve_or_reject_loan(
     request: Request,
     loan_id: int,
+    background_tasks: BackgroundTasks,  # Moved up before parameters with defaults
     new_status: str = Query(...),
     current_admin: Admin = Depends(check_permission("loan:approve")),
     db: Session = Depends(get_db),
 ):
-    result = approve_loan(loan_id, new_status, current_admin, db)
+    result = await approve_loan(
+        loan_id, new_status, current_admin, db, background_tasks
+    )
     invalidate_cache("loans:")  # Invalidate loan list cache
     invalidate_cache("analytics:summary")  # Invalidate analytics cache
     return result
