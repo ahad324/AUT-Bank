@@ -43,9 +43,9 @@ def register_admin(admin: AdminCreate, db: Session):
     )
 
     if existing_admin:
-        return error_response(
-            message="Admin with this email or username already exists",
+        raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            message="Admin with this email or username already exists",
         )
 
     new_admin = Admin(
@@ -76,9 +76,9 @@ def register_admin(admin: AdminCreate, db: Session):
 def login_admin(admin: AdminLogin, db: Session):
     admin_db = db.query(Admin).filter(Admin.Email == admin.Email).first()
     if not admin_db or not pwd_context.verify(admin.Password, admin_db.Password):
-        return error_response(
-            message="Invalid email or password",
+        raise CustomHTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            message="Invalid email or password",
         )
 
     admin_db.LastLogin = datetime.now(timezone.utc)

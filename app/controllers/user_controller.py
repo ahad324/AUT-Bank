@@ -79,13 +79,15 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
     )
 
     if not user or not pwd_context.verify(credentials.Password, user.Password):
-        return error_response(
-            message="Invalid credentials", status_code=status.HTTP_401_UNAUTHORIZED
+        raise CustomHTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            message="Invalid credentials"
         )
 
     if not user.IsActive:  # ✅ Prevent login if inactive
-        return error_response(
-            message="Account is pending approval", status_code=status.HTTP_403_FORBIDDEN
+        raise CustomHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Account is pending approval"
         )
 
     user.LastLogin = datetime.now(timezone.utc)
