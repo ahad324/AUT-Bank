@@ -124,7 +124,7 @@ def refresh_token(refresh_token: str, db: Session, model, role: str, id_field: s
             },
         )
     except JWTError:
-        return error_response(
-            message="Invalid or expired refresh token",
+        raise CustomHTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            message="Invalid or expired refresh token"
         )

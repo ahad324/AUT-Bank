@@ -9,7 +9,7 @@ from passlib.context import CryptContext
 from datetime import datetime, timezone
 
 # Schemas
-from app.core.exceptions import CustomHTTPException
+from app.core.exceptions import CustomHTTPException, DatabaseError
 from app.core.schemas import PaginatedResponse
 from app.models.loan import Loan
 from app.models.user import User
@@ -66,11 +66,7 @@ def register_admin(admin: AdminCreate, db: Session):
         )
     except Exception as e:
         db.rollback()
-        return error_response(
-            message="Registration failed",
-            details={"error": str(e)},
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        raise DatabaseError(f"Database error: {str(e)}")
 
 
 def login_admin(admin: AdminLogin, db: Session):
@@ -164,8 +160,9 @@ def toggle_user_active_status(user_id: int, current_admin_id: int, db: Session):
     user = db.query(User).filter(User.UserID == user_id).first()
 
     if not user:
-        return error_response(
-            message="User not found", status_code=status.HTTP_404_NOT_FOUND
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message="User not found"
         )
 
     user.IsActive = not user.IsActive

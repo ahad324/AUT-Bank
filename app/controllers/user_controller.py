@@ -45,9 +45,9 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
             if existing_user.Email == user.Email
             else "CNIC" if existing_user.CNIC == user.CNIC else "Username"
         )
-        return error_response(
-            message=f"{field} already registered",
+        raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            message=f"{field} already registered"
         )
 
     try:
