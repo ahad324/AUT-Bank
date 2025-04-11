@@ -7,13 +7,13 @@ from enum import Enum
 class AdminCreate(BaseModel):
     Username: constr(min_length=3, max_length=50)  # type: ignore
     Email: EmailStr
-    Password: str
+    Password: constr(min_length=8, max_length=255)  # type: ignore
     RoleID: int
 
 
 class AdminLogin(BaseModel):
     Email: EmailStr
-    Password: str
+    Password: constr(min_length=8, max_length=255)  # type: ignore
 
 
 class AdminResponseData(BaseModel):

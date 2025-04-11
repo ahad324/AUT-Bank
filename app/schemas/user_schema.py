@@ -18,7 +18,7 @@ class UserCreate(BaseModel):
     PhoneNumber: Optional[constr(max_length=20)] = None  # type: ignore
     CNIC: constr(min_length=13, max_length=15)  # type: ignore
     Email: EmailStr
-    Password: str
+    Password: constr(min_length=8, max_length=255)  # type: ignore
     IsActive: bool = False
     AccountType: str
     DateOfBirth: date
@@ -46,7 +46,7 @@ class UserUpdate(BaseModel):
     Country: Optional[constr(max_length=50)] = None  # type: ignore
     PostalCode: Optional[constr(max_length=20)] = None  # type: ignore
     PhoneNumber: Optional[constr(max_length=20)] = None  # type: ignore
-    Password: Optional[constr(min_length=8)] = None  # type: ignore # Added for admin updates
+    Password: Optional[constr(min_length=8, max_length=255)] = None  # type: ignore # Added for admin updates
     Email: Optional[EmailStr] = None
     IsActive: Optional[bool] = None  # Admin-only field, added for flexibility
     model_config = ConfigDict(from_attributes=True)
@@ -54,13 +54,13 @@ class UserUpdate(BaseModel):
 
 # Dedicated schema for user password update
 class UserPasswordUpdate(BaseModel):
-    CurrentPassword: constr(min_length=8)  # type: ignore
-    NewPassword: constr(min_length=8)  # type: ignore
+    CurrentPassword: constr(min_length=8, max_length=255)  # type: ignore
+    NewPassword: constr(min_length=8, max_length=255)  # type: ignore
 
 
 class UserLogin(BaseModel):
     login_id: str  # Can be either email or username
-    Password: str
+    Password: constr(min_length=8, max_length=255)  # type: ignore
 
     @validator("login_id")
     def validate_login_id(cls, v):
