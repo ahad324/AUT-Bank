@@ -1,4 +1,5 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
+from fastapi.websockets import WebSocketState
 from app.core.websocket_manager import ConnectionManager
 from app.core.auth import jwt, SECRET_KEY, ALGORITHM
 from app.core.database import get_db
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 router = APIRouter()
 manager = ConnectionManager()
 
+
 async def get_token_payload(token: str, db: Session):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -14,17 +16,17 @@ async def get_token_payload(token: str, db: Session):
     except Exception as e:
         return None
 
+
 @router.websocket("/ws/user")
 async def user_websocket(
-    websocket: WebSocket, 
-    token: str = Query(...),
-    db: Session = Depends(get_db)
+    websocket: WebSocket, token: str = Query(...), db: Session = Depends(get_db)
 ):
     user_id = None
     try:
         # Verify token
         payload = await get_token_payload(token, db)
         if not payload:
+            await websocket.send_text("Invalid or expired token")
             await websocket.close(code=4001)
             return
 
@@ -58,11 +60,10 @@ async def user_websocket(
         if websocket.client_state != WebSocketState.DISCONNECTED:
             await websocket.close(code=4000)
 
+
 @router.websocket("/ws/admin")
 async def admin_websocket(
-    websocket: WebSocket, 
-    token: str = Query(...),
-    db: Session = Depends(get_db)
+    websocket: WebSocket, token: str = Query(...), db: Session = Depends(get_db)
 ):
     try:
         # Verify token

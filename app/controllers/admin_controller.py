@@ -2,17 +2,18 @@ from io import StringIO
 import csv
 from fastapi.responses import StreamingResponse
 from typing import Optional
-from fastapi import status
+from fastapi import BackgroundTasks, status
 from sqlalchemy import asc, case, desc, func, or_
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 # Schemas
 from app import schemas
+from app.core.event_emitter import emit_event
 from app.core.exceptions import CustomHTTPException, DatabaseError
 from app.core.schemas import PaginatedResponse
-from app.models.loan import Loan
+from app.models.loan import Loan, LoanType
 from app.models.rbac import Permission, Role, RolePermission
 from app.models.user import User
 from app.schemas.admin_schema import (
@@ -25,6 +26,7 @@ from app.schemas.admin_schema import (
     AdminLoginResponseData,
     AdminSortBy,
 )
+from app.schemas.admin_schema import AdminUpdate, AdminPasswordUpdate
 
 # Models
 from app.models.admin import Admin
@@ -35,7 +37,12 @@ from app.models.withdrawal import Withdrawal
 # Core
 from app.core.auth import create_access_token, create_refresh_token
 from app.core.responses import success_response, error_response
+from app.schemas.card_schema import CardResponse
+from app.schemas.deposit_schema import DepositResponse
+from app.schemas.loan_schema import LoanResponse
+from app.schemas.transfer_schema import TransferResponse
 from app.schemas.user_schema import Order, SortBy, UserResponseData, UserUpdate
+from app.schemas.withdrawal_schema import WithdrawalResponse
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -431,6 +438,288 @@ def get_analytics_summary(db: Session):
             },
             "average_user_balance": float(avg_user_balance),
         },
+    )
+
+
+def get_current_admin(admin_id: int, db: Session):
+    admin = db.query(Admin).filter(Admin.AdminID == admin_id).first()
+    if not admin:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Admin not found"
+        )
+    role = db.query(Role).filter(Role.RoleID == admin.RoleID).first()
+    permissions = (
+        db.query(Permission)
+        .join(RolePermission, RolePermission.PermissionID == Permission.PermissionID)
+        .filter(RolePermission.RoleID == admin.RoleID)
+        .all()
+    )
+    return success_response(
+        message="Admin details retrieved successfully",
+        data=AdminLoginResponseData(
+            AdminID=admin.AdminID,
+            Username=admin.Username,
+            Email=admin.Email,
+            Role=RoleData.model_validate(role),
+            Permissions=[PermissionData.model_validate(perm) for perm in permissions],
+            LastLogin=admin.LastLogin.isoformat() if admin.LastLogin else None,
+            access_token="",
+            refresh_token="",
+            token_type="bearer",
+        ).model_dump(exclude={"access_token", "refresh_token"}),
+    )
+
+
+def update_current_admin(admin_id: int, admin_update: AdminUpdate, db: Session):
+    admin = db.query(Admin).filter(Admin.AdminID == admin_id).first()
+    if not admin:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Admin not found"
+        )
+    update_data = admin_update.model_dump(exclude_unset=True)
+    if "Username" in update_data and update_data["Username"] != admin.Username:
+        if db.query(Admin).filter(Admin.Username == update_data["Username"]).first():
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Username already exists",
+            )
+    if "Email" in update_data and update_data["Email"] != admin.Email:
+        if db.query(Admin).filter(Admin.Email == update_data["Email"]).first():
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, message="Email already exists"
+            )
+    for key, value in update_data.items():
+        setattr(admin, key, value)
+    try:
+        db.commit()
+        db.refresh(admin)
+        db.commit()
+        return success_response(
+            message="Admin profile updated successfully",
+            data=AdminResponseData.model_validate(admin).model_dump(),
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to update admin",
+            details={"error": str(e)},
+        )
+
+
+def update_admin_password(
+    admin_id: int, password_update: AdminPasswordUpdate, db: Session
+):
+    admin = db.query(Admin).filter(Admin.AdminID == admin_id).first()
+    if not admin:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Admin not found"
+        )
+    if not pwd_context.verify(password_update.CurrentPassword, admin.Password):
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Current password is incorrect",
+        )
+    admin.Password = pwd_context.hash(password_update.NewPassword)
+    try:
+        db.commit()
+        db.commit()
+        return success_response(
+            message="Password updated successfully", data={"AdminID": admin_id}
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to update password",
+            details={"error": str(e)},
+        )
+
+
+def get_admin_by_id(admin_id: int, db: Session):
+    admin = db.query(Admin).filter(Admin.AdminID == admin_id).first()
+    if not admin:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Admin not found"
+        )
+    return success_response(
+        message="Admin details retrieved successfully",
+        data=AdminResponseData.model_validate(admin).model_dump(),
+    )
+
+
+def delete_admin(admin_id: int, current_admin_id: int, db: Session):
+    if admin_id == current_admin_id:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Cannot delete own account"
+        )
+    admin = db.query(Admin).filter(Admin.AdminID == admin_id).first()
+    if not admin:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Admin not found"
+        )
+    try:
+        db.delete(admin)
+        db.commit()
+        db.commit()
+        return success_response(
+            message="Admin deleted successfully", data={"AdminID": admin_id}
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to delete admin",
+            details={"error": str(e)},
+        )
+
+
+def get_user_by_id(user_id: int, db: Session):
+    user = db.query(User).filter(User.UserID == user_id).first()
+    if not user:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="User not found"
+        )
+    return success_response(
+        message="User details retrieved successfully",
+        data=UserResponseData.model_validate(user).model_dump(),
+    )
+
+
+def get_user_deposits(
+    user_id: int,
+    db: Session,
+    page: int = 1,
+    per_page: int = 10,
+    status: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    sort_by: Optional[str] = "Timestamp",
+    order: Optional[str] = "desc",
+):
+    user = db.query(User).filter(User.UserID == user_id).first()
+    if not user:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="User not found"
+        )
+    query = db.query(Deposit).filter(Deposit.UserID == user_id)
+    if status:
+        query = query.filter(Deposit.Status == status)
+    if start_date:
+        query = query.filter(Deposit.Timestamp >= start_date)
+    if end_date:
+        query = query.filter(Deposit.Timestamp <= end_date)
+    sort_field = getattr(Deposit, sort_by, Deposit.Timestamp)
+    query = query.order_by(desc(sort_field) if order == "desc" else asc(sort_field))
+    total_deposits = query.count()
+    deposits = query.offset((page - 1) * per_page).limit(per_page).all()
+    return PaginatedResponse(
+        success=True,
+        message="Deposits retrieved successfully",
+        data={
+            "deposits": [
+                DepositResponse.model_validate(d).model_dump() for d in deposits
+            ]
+        },
+        page=page,
+        per_page=per_page,
+        total_items=total_deposits,
+        total_pages=(total_deposits + per_page - 1) // per_page,
+    )
+
+
+def get_loan_by_id(loan_id: int, db: Session):
+    loan = db.query(Loan).filter(Loan.LoanID == loan_id).first()
+    if not loan:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Loan not found"
+        )
+    loan_type = (
+        db.query(LoanType).filter(LoanType.LoanTypeID == loan.LoanTypeID).first()
+    )
+    return success_response(
+        message="Loan details retrieved successfully",
+        data=LoanResponse(
+            LoanID=loan.LoanID,
+            LoanTypeName=loan_type.LoanTypeName,
+            LoanAmount=loan.LoanAmount,
+            InterestRate=loan.InterestRate,
+            LoanDurationMonths=loan.LoanDurationMonths,
+            MonthlyInstallment=loan.MonthlyInstallment,
+            DueDate=loan.DueDate,
+            LoanStatus=loan.LoanStatus,
+            CreatedAt=loan.CreatedAt,
+        ).model_dump(),
+    )
+
+
+def get_card_by_id(card_id: int, db: Session):
+    from app.models.card import Card  # Assuming Card model exists
+
+    card = db.query(Card).filter(Card.CardID == card_id).first()
+    if not card:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Card not found"
+        )
+    return success_response(
+        message="Card details retrieved successfully",
+        data=CardResponse.model_validate(card).model_dump(),
+    )
+
+
+def unblock_card(card_id: int, db: Session):
+    from app.models.card import Card  # Assuming Card model exists
+
+    card = db.query(Card).filter(Card.CardID == card_id).first()
+    if not card:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Card not found"
+        )
+    if card.Status != "Blocked":
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Card is not blocked"
+        )
+    card.Status = "Active"
+    try:
+        db.commit()
+        return success_response(
+            message="Card unblocked successfully", data={"CardID": card_id}
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to unblock card",
+            details={"error": str(e)},
+        )
+
+
+def get_transaction_by_id(transaction_id: int, transaction_type: str, db: Session):
+    if transaction_type not in ["Deposit", "Transfer", "Withdrawal"]:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Invalid transaction type"
+        )
+    model = {"Deposit": Deposit, "Transfer": Transfer, "Withdrawal": Withdrawal}[
+        transaction_type
+    ]
+    transaction = (
+        db.query(model)
+        .filter(model.__table__.c[f"{transaction_type}ID"] == transaction_id)
+        .first()
+    )
+    if not transaction:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message=f"{transaction_type} not found",
+        )
+    schema = {
+        "Deposit": DepositResponse,
+        "Transfer": TransferResponse,
+        "Withdrawal": WithdrawalResponse,
+    }[transaction_type]
+    return success_response(
+        message=f"{transaction_type} details retrieved successfully",
+        data=schema.model_validate(transaction).model_dump(),
     )
 
 

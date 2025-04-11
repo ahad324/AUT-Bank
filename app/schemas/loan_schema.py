@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -26,7 +26,14 @@ class LoanResponse(BaseModel):
     DueDate: date
     LoanStatus: str
     CreatedAt: Optional[date]
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat(),
+            Decimal: lambda v: float(v),
+        },
+    )
 
 
 class LoanPaymentResponse(BaseModel):

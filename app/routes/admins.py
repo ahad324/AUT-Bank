@@ -26,16 +26,34 @@ from app.controllers.admin_controller import (
     toggle_user_active_status,
     update_user,
     get_analytics_summary,
+    get_current_admin,
+    update_current_admin,
+    update_admin_password,
+    get_admin_by_id,
+    delete_admin,
+    get_user_by_id,
+    get_user_deposits,
+    get_loan_by_id,
+    get_card_by_id,
+    unblock_card,
+    get_transaction_by_id,
 )
 from app.controllers.deposits.admins import create_deposit
 from app.controllers.admin_controller import get_all_users
-from app.controllers.fetchtransactions.admins import get_all_transactions
-from app.controllers.loans.admins import approve_loan, get_all_loans
+from app.controllers.transactions.admins import get_all_transactions
+from app.controllers.loans.admins import approve_loan, reject_loan, get_all_loans
 from app.controllers.cards.admins import list_all_cards, block_card, update_card_admin
 
 # Schemas
 from app.core.exceptions import CustomHTTPException
-from app.schemas.admin_schema import AdminCreate, AdminLogin, AdminOrder, AdminSortBy
+from app.schemas.admin_schema import (
+    AdminCreate,
+    AdminLogin,
+    AdminOrder,
+    AdminPasswordUpdate,
+    AdminSortBy,
+    AdminUpdate,
+)
 from app.schemas.card_schema import CardUpdate
 from app.schemas.deposit_schema import DepositCreate
 from app.schemas.user_schema import Order, SortBy, UserUpdate
@@ -89,6 +107,214 @@ def login(request: Request, credentials: AdminLogin, db: Session = Depends(get_d
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def refresh(request: Request, token: str, db: Session = Depends(get_db)):
     return refresh_token(token, db, Admin, "Admin", "AdminID")
+
+
+@router.get("/me", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_current_admin_route(
+    request: Request,
+    current_admin: Admin = Depends(check_permission("admin:view_self")),
+    db: Session = Depends(get_db),
+):
+    cache_key = get_cache_key(request, f"admin:{current_admin.AdminID}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = get_current_admin(current_admin.AdminID, db)
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.put("/me", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
+def update_current_admin_route(
+    request: Request,
+    admin_update: AdminUpdate,
+    current_admin: Admin = Depends(check_permission("admin:update_self")),
+    db: Session = Depends(get_db),
+):
+    result = update_current_admin(current_admin.AdminID, admin_update, db)
+    invalidate_cache(f"admin:{current_admin.AdminID}")
+    invalidate_cache("admins:")
+    return result
+
+
+@router.put("/me/password", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
+def update_admin_password_route(
+    request: Request,
+    password_update: AdminPasswordUpdate,
+    current_admin: Admin = Depends(check_permission("admin:update_self")),
+    db: Session = Depends(get_db),
+):
+    return update_admin_password(current_admin.AdminID, password_update, db)
+
+
+@router.get("/{admin_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_admin_by_id_route(
+    request: Request,
+    admin_id: int,
+    current_admin: Admin = Depends(check_permission("admin:view_all")),
+    db: Session = Depends(get_db),
+):
+    cache_key = get_cache_key(request, f"admin:{admin_id}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = get_admin_by_id(admin_id, db)
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.delete("/{admin_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
+def delete_admin_route(
+    request: Request,
+    admin_id: int,
+    current_admin: Admin = Depends(check_permission("admin:delete")),
+    db: Session = Depends(get_db),
+):
+    result = delete_admin(admin_id, current_admin.AdminID, db)
+    invalidate_cache(f"admin:{admin_id}")
+    invalidate_cache("admins:")
+    return result
+
+
+@router.get("/users/{user_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_user_by_id_route(
+    request: Request,
+    user_id: int,
+    current_admin: Admin = Depends(check_permission("user:view_all")),
+    db: Session = Depends(get_db),
+):
+    cache_key = get_cache_key(request, f"user:{user_id}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = get_user_by_id(user_id, db)
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.get("/users/{user_id}/deposits", response_model=PaginatedResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_user_deposits_route(
+    request: Request,
+    user_id: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    sort_by: Optional[str] = Query("Timestamp"),
+    order: Optional[str] = Query("desc"),
+    current_admin: Admin = Depends(check_permission("deposit:view_all")),
+    db: Session = Depends(get_db),
+):
+    params = {
+        "page": page,
+        "per_page": per_page,
+        "status": status,
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+        "sort_by": sort_by,
+        "order": order,
+    }
+    cache_key = get_cache_key(
+        request, f"user_deposits:{user_id}", current_admin.AdminID, params
+    )
+    cached = get_from_cache(cache_key)
+    if cached:
+        return PaginatedResponse(**cached)
+    result = get_user_deposits(
+        user_id, db, page, per_page, status, start_date, end_date, sort_by, order
+    )
+    set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.get("/loans/{loan_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_loan_by_id_route(
+    request: Request,
+    loan_id: int,
+    current_admin: Admin = Depends(check_permission("loan:view_all")),
+    db: Session = Depends(get_db),
+):
+    cache_key = get_cache_key(request, f"loan:{loan_id}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = get_loan_by_id(loan_id, db)
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.post("/loans/{loan_id}/reject", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
+async def reject_loan_route(
+    request: Request,
+    loan_id: int,
+    background_tasks: BackgroundTasks,
+    current_admin: Admin = Depends(check_permission("loan:approve")),
+    db: Session = Depends(get_db),
+):
+    result = await reject_loan(loan_id, current_admin, db, background_tasks)
+    invalidate_cache("loans:")
+    invalidate_cache("analytics:summary")
+    return result
+
+
+@router.get("/cards/{card_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_card_by_id_route(
+    request: Request,
+    card_id: int,
+    current_admin: Admin = Depends(check_permission("card:view_all")),
+    db: Session = Depends(get_db),
+):
+    cache_key = get_cache_key(request, f"card:{card_id}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = get_card_by_id(card_id, db)
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.put("/cards/{card_id}/unblock", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
+def unblock_card_route(
+    request: Request,
+    card_id: int,
+    current_admin: Admin = Depends(check_permission("card:manage")),
+    db: Session = Depends(get_db),
+):
+    result = unblock_card(card_id, db)
+    invalidate_cache("cards:")
+    return result
+
+
+@router.get("/transactions/{transaction_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_transaction_by_id_route(
+    request: Request,
+    transaction_id: int,
+    transaction_type: str = Query(...),
+    current_admin: Admin = Depends(check_permission("transaction:view_all")),
+    db: Session = Depends(get_db),
+):
+    cache_key = get_cache_key(
+        request, f"transaction:{transaction_type}:{transaction_id}"
+    )
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = get_transaction_by_id(transaction_id, transaction_type, db)
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
 
 
 @router.get("/analytics/summary", response_model=BaseResponse)
@@ -169,8 +395,8 @@ def toggle_user_status(
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_users(
     request: Request,
-    page: int = 1,
-    per_page: int = 10,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
     username: Optional[str] = None,
     email: Optional[str] = None,
     isactive: Optional[bool] = None,
@@ -286,19 +512,16 @@ def list_all_loans(
 
 @router.post("/loans/{loan_id}/approve", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
-async def approve_or_reject_loan(
+async def approve_loan(
     request: Request,
     loan_id: int,
     background_tasks: BackgroundTasks,
-    new_status: str = Query(...),
     current_admin: Admin = Depends(check_permission("loan:approve")),
     db: Session = Depends(get_db),
 ):
-    result = await approve_loan(
-        loan_id, new_status, current_admin, db, background_tasks
-    )
-    invalidate_cache("loans:")  # Invalidate loan list cache
-    invalidate_cache("analytics:summary")  # Invalidate analytics cache
+    result = await approve_loan(loan_id, current_admin, db, background_tasks)
+    invalidate_cache("loans:")
+    invalidate_cache("analytics:summary")
     return result
 
 

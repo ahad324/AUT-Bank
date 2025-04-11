@@ -74,15 +74,32 @@ class UserResponseData(BaseModel):
     Username: str
     FirstName: str
     LastName: str
-    Email: EmailStr
+    StreetAddress: Optional[str] = None
+    City: Optional[str] = None
+    State: Optional[str] = None
+    Country: Optional[str] = None
+    PostalCode: Optional[str] = None
+    PhoneNumber: Optional[str] = None
+    CNIC: str
+    Email: str
     AccountType: str
-    Balance: Decimal
+    Balance: float
     IsActive: bool
-    DateOfBirth: date
-    CreatedAt: datetime
-    LastLogin: Optional[datetime] = None
-    ApprovedByAdminID: Optional[int] = None
-    model_config = ConfigDict(from_attributes=True)
+    DateOfBirth: date  # Accept date object
+    CreatedAt: datetime  # Accept datetime object
+    LastLogin: Optional[datetime] = None  # Accept datetime object or None
+    access_token: str = ""
+    refresh_token: str = ""
+    token_type: str = "bearer"
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None,
+            date: lambda v: v.isoformat() if v else None,
+            Decimal: lambda v: float(v),
+        },
+    )
 
 
 class LoginResponseData(BaseModel):

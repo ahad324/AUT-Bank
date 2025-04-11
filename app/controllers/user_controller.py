@@ -47,7 +47,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         )
         raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            message=f"{field} already registered"
+            message=f"{field} already registered",
         )
 
     try:
@@ -80,14 +80,12 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
 
     if not user or not pwd_context.verify(credentials.Password, user.Password):
         raise CustomHTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            message="Invalid credentials"
+            status_code=status.HTTP_401_UNAUTHORIZED, message="Invalid credentials"
         )
 
     if not user.IsActive:  # ✅ Prevent login if inactive
         raise CustomHTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            message="Account is pending approval"
+            status_code=status.HTTP_403_FORBIDDEN, message="Account is pending approval"
         )
 
     user.LastLogin = datetime.now(timezone.utc)
@@ -190,6 +188,40 @@ def update_user_password(
             message="Failed to update password",
             details={"error": str(e)},
         )
+
+
+def get_user_profile(user_id: int, db: Session):
+    user = db.query(User).filter(User.UserID == user_id).first()
+    if not user:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="User not found"
+        )
+    return success_response(
+        message="User details retrieved successfully",
+        data=UserResponseData(
+            UserID=user.UserID,
+            Username=user.Username,
+            FirstName=user.FirstName,
+            LastName=user.LastName,
+            StreetAddress=user.StreetAddress,
+            City=user.City,
+            State=user.State,
+            Country=user.Country,
+            PostalCode=user.PostalCode,
+            PhoneNumber=user.PhoneNumber,
+            CNIC=user.CNIC,
+            Email=user.Email,
+            AccountType=user.AccountType,
+            Balance=user.Balance,
+            IsActive=user.IsActive,
+            DateOfBirth=user.DateOfBirth.isoformat() if user.DateOfBirth else None,
+            CreatedAt=user.CreatedAt.isoformat() if user.CreatedAt else None,
+            LastLogin=user.LastLogin.isoformat() if user.LastLogin else None,
+            access_token="",
+            refresh_token="",
+            token_type="bearer",
+        ).model_dump(exclude={"access_token", "refresh_token"}),
+    )
 
 
 def get_user_analytics_summary(user_id: int, db: Session):
@@ -312,18 +344,6 @@ def get_user_analytics_summary(user_id: int, db: Session):
             "current_balance": current_balance,
         },
     )
-
-
-# app/controllers/user_controller.py
-# ... (existing imports)
-from io import StringIO
-import csv
-from fastapi.responses import StreamingResponse
-from typing import Optional
-from datetime import datetime
-from sqlalchemy.orm import aliased
-
-# ... (existing code unchanged up to export_user_transactions)
 
 
 def export_user_transactions(

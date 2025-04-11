@@ -85,10 +85,10 @@ def make_loan_payment(user_id: int, payment: LoanPaymentCreate, db: Session):
             message="Loan not found or not owned by user",
         )
 
-    if loan.LoanStatus != "Approved":
+    if loan.LoanStatus != "Active":
         raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            message="Loan must be approved to accept payments",
+            message="Loan must be active to accept payments",
         )
 
     if payment.PaymentAmount <= 0:

@@ -30,6 +30,17 @@ class PermissionData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AdminUpdate(BaseModel):
+    Username: Optional[constr(min_length=3, max_length=50)] = None  # type: ignore
+    Email: Optional[EmailStr] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminPasswordUpdate(BaseModel):
+    CurrentPassword: constr(min_length=8, max_length=255)  # type: ignore
+    NewPassword: constr(min_length=8, max_length=255)  # type: ignore
+
+
 class AdminResponseData(BaseModel):
     AdminID: int
     Username: str

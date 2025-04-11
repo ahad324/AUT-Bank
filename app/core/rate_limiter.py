@@ -1,7 +1,9 @@
+from datetime import date, datetime
+from decimal import Decimal
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from fastapi import Request, HTTPException, Depends
+from fastapi import Request, HTTPException
 from app.core.auth import get_current_user, get_current_admin
 from app.models.user import User
 from app.models.admin import Admin
@@ -103,10 +105,21 @@ def get_from_cache(key: str) -> Optional[Any]:
     return json.loads(cached) if cached else None
 
 
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, date):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
+
 def set_to_cache(key: str, value: Any, ttl: int) -> None:
     """Store data in Redis cache with specified TTL."""
     redis = get_redis_client()
-    redis.setex(key, ttl, json.dumps(value))
+    redis.setex(key, ttl, json.dumps(value, cls=DateTimeEncoder))
 
 
 def invalidate_cache(pattern: str) -> None:

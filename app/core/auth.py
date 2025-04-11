@@ -44,20 +44,34 @@ def create_refresh_token(data: dict):
 def get_current_user(
     token: str = Depends(user_oauth2_scheme), db: Session = Depends(get_db)
 ):
+    print(f"Token received: {token} (type: {type(token)})")  # Debug statement
     credentials_exception = CustomHTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         message="Could not validate credentials",
         details={},
     )
+    if not isinstance(token, str):
+        raise CustomHTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            message=f"Invalid token type: expected string, got {type(token)}",
+            details={"token": token},
+        )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except JWTError:
+        user_id = int(user_id)
+    except JWTError as e:
+        raise CustomHTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            message="Invalid or expired token",
+            details={"error": str(e)},
+        )
+    except ValueError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.UserID == int(user_id)).first()
+    user = db.query(User).filter(User.UserID == user_id).first()
     if user is None:
         raise credentials_exception
 
@@ -126,5 +140,5 @@ def refresh_token(refresh_token: str, db: Session, model, role: str, id_field: s
     except JWTError:
         raise CustomHTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            message="Invalid or expired refresh token"
+            message="Invalid or expired refresh token",
         )

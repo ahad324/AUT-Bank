@@ -11,7 +11,7 @@ from app.controllers.cards.users import (
     list_cards,
     update_card,
 )
-from app.controllers.fetchtransactions.users import get_user_transactions
+from app.controllers.transactions.users import get_user_transactions
 from app.controllers.transfers.users import create_transfer
 from app.controllers.user_controller import (
     export_user_transactions,
@@ -20,6 +20,7 @@ from app.controllers.user_controller import (
     update_current_user,
     update_user_password,
     get_user_analytics_summary,
+    get_user_profile,
 )
 from app.controllers.loans.users import (
     apply_loan,
@@ -103,6 +104,8 @@ def get_user_analytics_summary_route(
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def list_user_transactions(
     request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     params: PaginationParams = Depends(),
@@ -145,7 +148,7 @@ def list_user_transactions(
     return result
 
 
-@router.post("/transfers", response_model=BaseResponse)
+@router.post("/transfer", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 async def create_transfer_route(
     request: Request,
@@ -166,16 +169,20 @@ def list_cards_route(
     request: Request,
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
+    sort_by: str = Query(
+        "CardID", description="Sort by: CardID, ExpirationDate, Status, CardNumber"
+    ),
+    order: str = Query("asc", regex="^(asc|desc)$", description="Order: asc or desc"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    params = {"page": page, "per_page": per_page}
+    params = {"page": page, "per_page": per_page, "sort_by": sort_by, "order": order}
     cache_key = get_cache_key(request, "user_cards", current_user.UserID, params)
     cached = get_from_cache(cache_key)
     if cached:
         return PaginatedResponse(**cached)
-    result = list_cards(current_user.UserID, db, page, per_page)
-    set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)  # 1 hr TTL
+    result = list_cards(current_user.UserID, db, page, per_page, sort_by, order)
+    set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)
     return result
 
 
@@ -312,6 +319,22 @@ def list_loan_payments(
         return PaginatedResponse(**cached)
     result = get_loan_payments(current_user.UserID, loan_id, db, page, per_page)
     set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.get("/me", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+def get_current_user_route(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    cache_key = get_cache_key(request, f"user:{current_user.UserID}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = get_user_profile(current_user.UserID, db)
+    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
     return result
 
 

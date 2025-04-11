@@ -23,3 +23,11 @@ class PaginatedResponse(BaseResponse):
     per_page: int
     total_items: int
     total_pages: int
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat(),
+        },
+    )

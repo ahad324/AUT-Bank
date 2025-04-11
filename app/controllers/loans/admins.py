@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, asc, desc
+from sqlalchemy import func, asc, desc, text
 from app.models.loan import Loan, LoanType
 from app.models.user import User
 from app.models.admin import Admin
@@ -16,7 +16,6 @@ from app.core.event_emitter import emit_event
 
 async def approve_loan(
     loan_id: int,
-    new_status: str,
     current_admin: Admin,
     db: Session,
     background_tasks: BackgroundTasks,
@@ -26,19 +25,32 @@ async def approve_loan(
         raise CustomHTTPException(
             status_code=status.HTTP_404_NOT_FOUND, message="Loan not found"
         )
+    if loan.LoanStatus != "Pending":
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Only pending loans can be approved",
+        )
 
     try:
-        loan.Status = new_status
-        loan.AdminID = current_admin.AdminID
+        loan.LoanStatus = "Active"
+        db.execute(
+            text(
+                "EXEC UpdateUserBalance @UserID=:user_id, @Amount=:amount, @TransactionType='LoanApproved', @EntityID=:loan_id"
+            ),
+            {
+                "user_id": loan.UserID,
+                "amount": float(loan.LoanAmount),
+                "loan_id": loan_id,
+            },
+        )
         db.commit()
-        db.refresh(loan)
 
         # Emit notification to the loan applicant (user)
         await emit_event(
             "loan_status_updated",
             {
                 "loan_id": loan_id,
-                "status": new_status,
+                "status": "Active",
                 "admin_id": current_admin.AdminID,
             },
             user_id=loan.UserID,
@@ -50,7 +62,7 @@ async def approve_loan(
             "loan_processed",
             {
                 "loan_id": loan_id,
-                "status": new_status,
+                "status": "Active",
                 "admin_id": current_admin.AdminID,
                 "user_id": loan.UserID,
             },
@@ -59,14 +71,71 @@ async def approve_loan(
         )
 
         return success_response(
-            message=f"Loan {new_status} successfully",
-            data={"loan_id": loan_id, "status": new_status},
+            message="Loan approved successfully",
+            data={"loan_id": loan_id, "status": "Active"},
         )
     except Exception as e:
         db.rollback()
         raise CustomHTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            message="Failed to update loan status",
+            message="Failed to approve loan",
+            details={"error": str(e)},
+        )
+
+
+async def reject_loan(
+    loan_id: int,
+    current_admin: Admin,
+    db: Session,
+    background_tasks: BackgroundTasks,
+):
+    loan = db.query(Loan).filter(Loan.LoanID == loan_id).first()
+    if not loan:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Loan not found"
+        )
+    if loan.LoanStatus != "Pending":
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Only pending loans can be rejected",
+        )
+
+    try:
+        db.commit()
+
+        await emit_event(
+            "loan_status_updated",
+            {
+                "loan_id": loan_id,
+                "status": "Pending",
+                "rejected": True,
+                "admin_id": current_admin.AdminID,
+            },
+            user_id=loan.UserID,
+            background_tasks=background_tasks,
+        )
+        await emit_event(
+            "loan_processed",
+            {
+                "loan_id": loan_id,
+                "status": "Pending",
+                "rejected": True,
+                "admin_id": current_admin.AdminID,
+                "user_id": loan.UserID,
+            },
+            broadcast=True,
+            background_tasks=background_tasks,
+        )
+
+        return success_response(
+            message="Loan rejected successfully",
+            data={"loan_id": loan_id, "status": "Rejected"},
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to reject loan",
             details={"error": str(e)},
         )
 

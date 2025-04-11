@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <title>AUT Bank WebSocket Test</title>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         --primary-color: #a78bfa;
@@ -24,7 +27,7 @@
       }
 
       body {
-        font-family: 'Space Grotesk', sans-serif;
+        font-family: "Space Grotesk", sans-serif;
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         color: var(--text-primary);
         line-height: 1.6;
@@ -81,7 +84,7 @@
         color: var(--text-secondary);
         cursor: pointer;
         transition: all 0.3s ease;
-        font-family: 'Space Grotesk', sans-serif;
+        font-family: "Space Grotesk", sans-serif;
         font-weight: 500;
         text-align: center;
         white-space: nowrap;
@@ -117,8 +120,14 @@
       }
 
       @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
       .panel h2 {
@@ -157,7 +166,11 @@
       button {
         width: 100%;
         padding: 1rem;
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        background: linear-gradient(
+          135deg,
+          var(--primary-color) 0%,
+          var(--primary-dark) 100%
+        );
         color: white;
         border: none;
         border-radius: 1rem;
@@ -188,7 +201,7 @@
       }
 
       /* Update the body HTML to use new toggle buttons */
-      </style>
+    </style>
   </head>
   <body>
     <div class="header">
@@ -197,9 +210,15 @@
 
     <div class="controls">
       <div class="toggle-container">
-        <button class="toggle-btn active" onclick="toggleView('both')">Both Panels</button>
-        <button class="toggle-btn" onclick="toggleView('user')">User Only</button>
-        <button class="toggle-btn" onclick="toggleView('admin')">Admin Only</button>
+        <button class="toggle-btn active" onclick="toggleView('both')">
+          Both Panels
+        </button>
+        <button class="toggle-btn" onclick="toggleView('user')">
+          User Only
+        </button>
+        <button class="toggle-btn" onclick="toggleView('admin')">
+          Admin Only
+        </button>
       </div>
     </div>
 
@@ -222,7 +241,11 @@
           Status:
           <span id="adminStatus" class="status disconnected">Disconnected</span>
         </div>
-        <input type="text" id="adminToken" placeholder="Enter admin JWT token" />
+        <input
+          type="text"
+          id="adminToken"
+          placeholder="Enter admin JWT token"
+        />
         <button onclick="connectAdmin()">Connect Admin</button>
         <h3>Admin Notifications</h3>
         <div id="adminNotifications"></div>
@@ -234,39 +257,173 @@
       let adminWs = null;
 
       function toggleView(view) {
-        const userPanel = document.getElementById('userPanel');
-        const adminPanel = document.getElementById('adminPanel');
-        const buttons = document.querySelectorAll('.toggle-btn');
-        
+        const userPanel = document.getElementById("userPanel");
+        const adminPanel = document.getElementById("adminPanel");
+        const buttons = document.querySelectorAll(".toggle-btn");
+
         // Reset all buttons
-        buttons.forEach(btn => btn.classList.remove('active'));
-        
+        buttons.forEach((btn) => btn.classList.remove("active"));
+
         // Update panels visibility
-        switch(view) {
-          case 'both':
-            userPanel.classList.add('visible');
-            adminPanel.classList.add('visible');
-            buttons[0].classList.add('active');
+        switch (view) {
+          case "both":
+            userPanel.classList.add("visible");
+            adminPanel.classList.add("visible");
+            buttons[0].classList.add("active");
             break;
-          case 'user':
-            userPanel.classList.add('visible');
-            adminPanel.classList.remove('visible');
-            buttons[1].classList.add('active');
+          case "user":
+            userPanel.classList.add("visible");
+            adminPanel.classList.remove("visible");
+            buttons[1].classList.add("active");
             break;
-          case 'admin':
-            userPanel.classList.remove('visible');
-            adminPanel.classList.add('visible');
-            buttons[2].classList.add('active');
+          case "admin":
+            userPanel.classList.remove("visible");
+            adminPanel.classList.add("visible");
+            buttons[2].classList.add("active");
             break;
         }
       }
 
       // Initialize panels visibility
-      document.addEventListener('DOMContentLoaded', () => {
-        toggleView('both');
+      document.addEventListener("DOMContentLoaded", () => {
+        toggleView("both");
       });
 
+      function connectUser() {
+        const token = document.getElementById("userToken").value;
+        if (!token) {
+          alert("Please enter a user token");
+          return;
+        }
+
+        if (userWs) {
+          userWs.close();
+        }
+
+        try {
+          userWs = new WebSocket(
+            `ws://127.0.0.1:8000/api/v1/ws/user?token=${token}`
+          );
+
+          userWs.onerror = (error) => {
+            console.error("WebSocket Error:", error);
+            document.getElementById("userStatus").textContent = "Error";
+            document.getElementById("userStatus").className =
+              "status disconnected";
+          };
+
+          userWs.onopen = () => {
+            document.getElementById("userStatus").textContent = "Connected";
+            document.getElementById("userStatus").className =
+              "status connected";
+          };
+
+          userWs.onclose = () => {
+            document.getElementById("userStatus").textContent = "Disconnected";
+            document.getElementById("userStatus").className =
+              "status disconnected";
+          };
+
+          userWs.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              const notificationDiv = document.createElement("div");
+              notificationDiv.className = "notification user";
+              notificationDiv.innerHTML = `
+                            <strong>${data.type}</strong><br>
+                            <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                            <small>${data.timestamp}</small>
+                        `;
+              document
+                .getElementById("userNotifications")
+                .prepend(notificationDiv);
+            } catch (error) {
+              console.error("Error processing message:", error);
+            }
+          };
+        } catch (error) {
+          console.error("WebSocket Connection Error:", error);
+          document.getElementById("userStatus").textContent = "Error";
+          document.getElementById("userStatus").className =
+            "status disconnected";
+        }
+      }
+
       // Rest of the WebSocket connection code remains the same
+      function connectAdmin() {
+        const token = document.getElementById("adminToken").value;
+        if (!token) {
+          alert("Please enter an admin token");
+          return;
+        }
+
+        if (adminWs) {
+          adminWs.close();
+        }
+
+        try {
+          adminWs = new WebSocket(
+            `ws://127.0.0.1:8000/api/v1/ws/admin?token=${token}`
+          );
+
+          adminWs.onerror = (error) => {
+            console.error("WebSocket Error:", error);
+            document.getElementById("adminStatus").textContent = "Error";
+            document.getElementById("adminStatus").className =
+              "status disconnected";
+          };
+
+          adminWs.onopen = () => {
+            document.getElementById("adminStatus").textContent = "Connected";
+            document.getElementById("adminStatus").className =
+              "status connected";
+          };
+
+          adminWs.onclose = () => {
+            document.getElementById("adminStatus").textContent = "Disconnected";
+            document.getElementById("adminStatus").className =
+              "status disconnected";
+          };
+
+          adminWs.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const notificationDiv = document.createElement("div");
+            notificationDiv.className = "notification admin";
+            notificationDiv.innerHTML = `
+                        <strong>${data.type}</strong><br>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                        <small>${data.timestamp}</small>
+                    `;
+            document
+              .getElementById("adminNotifications")
+              .prepend(notificationDiv);
+          };
+        } catch (error) {
+          console.error("WebSocket Connection Error:", error);
+          document.getElementById("adminStatus").textContent = "Error";
+          document.getElementById("adminStatus").className =
+            "status disconnected";
+        }
+      }
+
+      // Update the error handling in both connectUser and connectAdmin functions
+      userWs.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+        document.getElementById("userStatus").textContent = "Error";
+        document.getElementById("userStatus").className = "status disconnected";
+      };
+
+      adminWs.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+        document.getElementById("adminStatus").textContent = "Error";
+        document.getElementById("adminStatus").className =
+          "status disconnected";
+      };
+
+      window.onbeforeunload = () => {
+        if (userWs) userWs.close();
+        if (adminWs) adminWs.close();
+      };
     </script>
-</body>
+  </body>
 </html>

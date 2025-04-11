@@ -31,11 +31,11 @@ CREATE TABLE RolePermissions (
     RolePermissionID INT IDENTITY(1,1) PRIMARY KEY,
     RoleID INT NOT NULL FOREIGN KEY REFERENCES Roles(RoleID) ON DELETE CASCADE,
     PermissionID INT NOT NULL FOREIGN KEY REFERENCES Permissions(PermissionID) ON DELETE CASCADE,
-    CONSTRAINT UQ_RolePermission UNIQUE (RoleID, PermissionID) -- Ensure no duplicate role-permission pairs
+    CONSTRAINT UQ_RolePermission UNIQUE (RoleID, PermissionID)
 );
 GO
 
--- Create Users Table with enhanced fields
+-- Create Users Table
 CREATE TABLE Users (
     UserID INT IDENTITY(1,1) PRIMARY KEY,
     Username NVARCHAR(50) NOT NULL UNIQUE,
@@ -66,52 +66,57 @@ CREATE TABLE Cards (
     CardID INT IDENTITY(1,1) PRIMARY KEY,
     UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE CASCADE,
     CardNumber NVARCHAR(16) NOT NULL UNIQUE CHECK (LEN(CardNumber) = 16 AND CardNumber NOT LIKE '%[^0-9]%'),
-    Pin NVARCHAR(255) NOT NULL, -- Hashed PIN
+    Pin CHAR(60) NOT NULL, -- Fixed length for hashed PIN (e.g., bcrypt output)
     ExpirationDate DATE NOT NULL CHECK (ExpirationDate > GETDATE()),
     Status NVARCHAR(20) NOT NULL CHECK (Status IN ('Active', 'Expired', 'Blocked')) DEFAULT 'Active',
-    CreatedAt DATETIME DEFAULT GETDATE(),
-    CONSTRAINT CHK_One_Active_Card_Per_User UNIQUE (UserID, Status)
+    CreatedAt DATETIME DEFAULT GETDATE()
 );
+GO
+
+-- Enforce one active card per user
+CREATE UNIQUE INDEX idx_cards_active_per_user 
+ON Cards(UserID, CardID) 
+WHERE Status = 'Active';
 GO
 
 -- Create LoanTypes Table
 CREATE TABLE LoanTypes (
     LoanTypeID INT IDENTITY(1,1) PRIMARY KEY,
-    LoanTypeName NVARCHAR(50) NOT NULL UNIQUE, 
+    LoanTypeName NVARCHAR(50) NOT NULL UNIQUE,
     DefaultInterestRate DECIMAL(5,2) NOT NULL CHECK (DefaultInterestRate > 0),
     LatePaymentFeePerDay DECIMAL(10,2) NOT NULL CHECK (LatePaymentFeePerDay >= 0)
 );
 GO
 
--- Create Loans Table with improved monthly installment calculation
+-- Create Loans Table (simplified status for dedicated endpoints)
 CREATE TABLE Loans (
     LoanID INT IDENTITY(1,1) PRIMARY KEY,
     UserID INT FOREIGN KEY REFERENCES Users(UserID) ON DELETE CASCADE,
     LoanTypeID INT FOREIGN KEY REFERENCES LoanTypes(LoanTypeID) ON DELETE CASCADE,
     LoanAmount DECIMAL(19,4) NOT NULL CHECK (LoanAmount > 0),
-    InterestRate DECIMAL(5,2) NOT NULL,  
-    LoanDurationMonths INT NOT NULL CHECK (LoanDurationMonths > 0), 
+    InterestRate DECIMAL(5,2) NOT NULL,
+    LoanDurationMonths INT NOT NULL CHECK (LoanDurationMonths > 0),
     MonthlyInstallment AS 
         (LoanAmount * (InterestRate/100/12) * POWER(1 + (InterestRate/100/12), LoanDurationMonths)) / 
         (POWER(1 + (InterestRate/100/12), LoanDurationMonths) - 1) PERSISTED,
-    DueDate DATE NOT NULL, 
-    LoanStatus NVARCHAR(20) CHECK (LoanStatus IN ('Pending', 'Approved', 'Rejected', 'Repaid')) DEFAULT 'Pending',
+    DueDate DATE NOT NULL,
+    LoanStatus NVARCHAR(20) CHECK (LoanStatus IN ('Pending', 'Active', 'Repaid')) DEFAULT 'Pending', -- Simplified
     CreatedAt DATETIME DEFAULT GETDATE()
 );
 GO
 
--- Create LoanPayments Table with computed TotalAmountPaid
+-- Create LoanPayments Table
 CREATE TABLE LoanPayments (
     PaymentID INT IDENTITY(1,1) PRIMARY KEY,
     LoanID INT FOREIGN KEY REFERENCES Loans(LoanID) ON DELETE CASCADE,
     PaymentAmount DECIMAL(19,4) NOT NULL CHECK (PaymentAmount > 0),
     PaymentDate DATE NOT NULL DEFAULT GETDATE(),
-    LateFee DECIMAL(10,2) DEFAULT 0, 
+    LateFee DECIMAL(10,2) DEFAULT 0,
     TotalAmountPaid AS (PaymentAmount + LateFee) PERSISTED
 );
 GO
 
--- Create Transfers Table (for user-initiated transfers)
+-- Create Transfers Table
 CREATE TABLE Transfers (
     TransferID INT IDENTITY(1,1) PRIMARY KEY,
     SenderID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE NO ACTION,
@@ -123,7 +128,8 @@ CREATE TABLE Transfers (
     Timestamp DATETIME DEFAULT GETDATE()
 );
 GO
--- Create Deposits Table (for admin-initiated deposits)
+
+-- Create Deposits Table
 CREATE TABLE Deposits (
     DepositID INT IDENTITY(1,1) PRIMARY KEY,
     UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE NO ACTION,
@@ -135,7 +141,8 @@ CREATE TABLE Deposits (
     Timestamp DATETIME DEFAULT GETDATE()
 );
 GO
--- Create Withdrawals Table (for ATM withdrawals)
+
+-- Create Withdrawals Table
 CREATE TABLE Withdrawals (
     WithdrawalID INT IDENTITY(1,1) PRIMARY KEY,
     UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE NO ACTION,
@@ -148,82 +155,106 @@ CREATE TABLE Withdrawals (
 );
 GO
 
--- Create Indexes for Faster Queries
+-- Centralized Stored Procedure for Balance Updates
+CREATE PROCEDURE UpdateUserBalance
+    @UserID INT,
+    @Amount DECIMAL(19,4),
+    @TransactionType NVARCHAR(20),
+    @EntityID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @NewBalance DECIMAL(19,4);
+        SET @NewBalance = (SELECT Balance FROM Users WHERE UserID = @UserID) + 
+                         (CASE WHEN @TransactionType IN ('Deposit', 'LoanApproved') THEN @Amount 
+                               WHEN @TransactionType IN ('Withdrawal', 'TransferOut') THEN -@Amount 
+                               ELSE 0 END);
+
+        IF @NewBalance < 0
+            THROW 50001, 'Insufficient balance', 1;
+
+        UPDATE Users 
+        SET Balance = @NewBalance 
+        WHERE UserID = @UserID;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- Optimized Indexes
 CREATE INDEX idx_users_email ON Users(Email);
 CREATE INDEX idx_users_cnic ON Users(CNIC);
 CREATE INDEX idx_users_username ON Users(Username);
-CREATE INDEX idx_users_createdat ON Users(CreatedAt);
-CREATE INDEX idx_users_account_type ON Users(AccountType);
-CREATE INDEX idx_users_balance ON Users(Balance);
-CREATE INDEX idx_users_phone ON Users(PhoneNumber) WHERE PhoneNumber IS NOT NULL;
-CREATE INDEX idx_users_approvedby ON Users(ApprovedByAdminID);
-
 CREATE INDEX idx_admins_email ON Admins(Email);
-
 CREATE INDEX idx_transfers_senderid ON Transfers(SenderID);
 CREATE INDEX idx_transfers_receiverid ON Transfers(ReceiverID);
 CREATE INDEX idx_transfers_status ON Transfers(Status);
-CREATE INDEX idx_transfers_timestamp ON Transfers(Timestamp);
-
 CREATE INDEX idx_deposits_userid ON Deposits(UserID);
 CREATE INDEX idx_deposits_adminid ON Deposits(AdminID);
 CREATE INDEX idx_deposits_status ON Deposits(Status);
-CREATE INDEX idx_deposits_timestamp ON Deposits(Timestamp);
-
 CREATE INDEX idx_withdrawals_userid ON Withdrawals(UserID);
 CREATE INDEX idx_withdrawals_cardid ON Withdrawals(CardID);
 CREATE INDEX idx_withdrawals_status ON Withdrawals(Status);
-CREATE INDEX idx_withdrawals_timestamp ON Withdrawals(Timestamp);
-
 CREATE INDEX idx_cards_userid ON Cards(UserID);
 CREATE INDEX idx_cards_cardnumber ON Cards(CardNumber);
-CREATE INDEX idx_cards_status ON Cards(Status);
-GO
-
 CREATE INDEX idx_loans_userid ON Loans(UserID);
-CREATE INDEX idx_loans_loantypeid ON Loans(LoanTypeID);
-CREATE INDEX idx_loans_duedate ON Loans(DueDate);
 CREATE INDEX idx_loans_status ON Loans(LoanStatus);
 GO
 
+-- Seed LoanTypes Data
 INSERT INTO LoanTypes (LoanTypeName, DefaultInterestRate, LatePaymentFeePerDay)
 VALUES 
-    ('Personal Loan', 5.50, 10.00),  -- 5.5% interest, $10/day late fee
-    ('Home Loan', 3.75, 15.00),     -- 3.75% interest, $15/day late fee
-    ('Car Loan', 4.25, 12.50),      -- 4.25% interest, $12.50/day late fee
-    ('Education Loan', 6.00, 8.00); -- 6% interest, $8/day late fee
-
-
--- Seed initial data (optional, for testing)
-INSERT INTO Roles (RoleName, Description) VALUES
-('SuperAdmin', 'Full system access'),
-('Manager', 'Manages operations'),
-('Auditor', 'Views and audits data');
+    ('Personal Loan', 5.50, 10.00),
+    ('Home Loan', 3.75, 15.00),
+    ('Car Loan', 4.25, 12.50),
+    ('Education Loan', 6.00, 8.00);
 GO
 
+-- Seed Roles
+INSERT INTO Roles (RoleName, Description) VALUES
+('SuperAdmin', 'Full system access'),
+('Manager', 'Manages operations');
+GO
+
+-- Seed Permissions
 INSERT INTO Permissions (PermissionName, Description) VALUES
 ('admin:register', 'Register new admins'),
 ('admin:view_all', 'View all admins'),
+('admin:view_self', 'View own admin profile'),
+('admin:update_self', 'Update own admin profile'),
+('admin:delete', 'Delete other admin accounts'),
 ('user:approve', 'Approve user accounts'),
 ('user:view_all', 'View all users'),
+('user:delete', 'Delete users accounts'),
+('user:update', 'Update user details'),
 ('loan:approve', 'Approve or reject loans'),
 ('loan:view_all', 'View all loans'),
 ('transaction:view_all', 'View all transactions'),
 ('deposit:manage', 'Manage deposits'),
+('deposit:view_all', 'View all deposits'),
 ('rbac:manage_permissions', 'Manage role-based access control permissions'),
 ('rbac:view_permissions', 'View role-based access control permissions'),
 ('rbac:manage_role_permissions', 'Manage role permissions in RBAC'),
 ('rbac:view_roles', 'View all roles in RBAC'),
 ('rbac:manage_roles', 'Manage roles in RBAC'),
-('card:view_all', 'Allows Viewing User's cards'),
-('card:manage', 'Manage User's cards'),
+('card:view_all', 'Allows Viewing User''s cards'),
+('card:manage', 'Manage User''s cards'),
 ('analytics:view', 'View Analytics'),
-('transactions:export', 'Export Transaction history')
+('transactions:export', 'Export Transaction history');
 GO
 
+-- Assign All Permissions to SuperAdmin Role
 INSERT INTO RolePermissions (RoleID, PermissionID) 
 SELECT r.RoleID, p.PermissionID 
 FROM Roles r
 CROSS JOIN Permissions p
-WHERE r.RoleName = 'SuperAdmin'; -- SuperAdmin gets all permissions
+WHERE r.RoleName = 'SuperAdmin';
 GO

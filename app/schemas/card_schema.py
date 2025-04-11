@@ -27,4 +27,10 @@ class CardResponse(BaseModel):
     ExpirationDate: date
     Status: str
     CreatedAt: datetime
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat(),  # Handle date objects
+        },
+    )

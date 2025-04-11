@@ -1,6 +1,7 @@
 from datetime import date
-from sqlalchemy import func
+from sqlalchemy import asc, desc, func
 from sqlalchemy.orm import Session
+from app.core.schemas import PaginatedResponse
 from app.models.card import Card
 from app.schemas.card_schema import CardCreate, CardUpdate, CardResponse
 from app.core.responses import success_response
@@ -50,29 +51,50 @@ def create_card(user_id: int, card: CardCreate, db: Session):
         )
 
 
-def list_cards(user_id: int, db: Session, page: int = 1, per_page: int = 10):
+def list_cards(
+    user_id: int,
+    db: Session,
+    page: int = 1,
+    per_page: int = 10,
+    sort_by: str = "CardID",
+    order: str = "asc",
+):
     query = db.query(Card).filter(Card.UserID == user_id)
 
     # Get total count for pagination
     total_items = query.count()
 
     # Calculate total pages
-    total_pages = (total_items + per_page - 1) // per_page  # Ceiling division
+    total_pages = (total_items + per_page - 1) // per_page
+
+    # Define sortable columns
+    sort_columns = {
+        "CardID": Card.CardID,
+        "ExpirationDate": Card.ExpirationDate,
+        "Status": Card.Status,
+        "CardNumber": Card.CardNumber,
+    }
+    sort_column = sort_columns.get(sort_by, Card.CardID)  # Default to CardID
+    order_func = desc if order.lower() == "desc" else asc
+
+    # Apply ordering
+    query = query.order_by(order_func(sort_column))
 
     # Apply pagination
     cards = query.offset((page - 1) * per_page).limit(per_page).all()
 
-    return {
-        "success": True,
-        "message": "No cards found" if not cards else "Cards retrieved successfully",
-        "data": {
+    # Return PaginatedResponse
+    return PaginatedResponse(
+        success=True,
+        message="No cards found" if not cards else "Cards retrieved successfully",
+        data={
             "cards": [CardResponse.model_validate(card).model_dump() for card in cards]
         },
-        "page": page,
-        "per_page": per_page,
-        "total_items": total_items,
-        "total_pages": total_pages,
-    }
+        page=page,
+        per_page=per_page,
+        total_items=total_items,
+        total_pages=total_pages,
+    )
 
 
 def update_card(user_id: int, card_id: int, card_update: CardUpdate, db: Session):
