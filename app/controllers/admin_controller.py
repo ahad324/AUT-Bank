@@ -9,15 +9,20 @@ from passlib.context import CryptContext
 from datetime import datetime, timezone
 
 # Schemas
+from app import schemas
 from app.core.exceptions import CustomHTTPException, DatabaseError
 from app.core.schemas import PaginatedResponse
 from app.models.loan import Loan
+from app.models.rbac import Permission, Role, RolePermission
 from app.models.user import User
 from app.schemas.admin_schema import (
     AdminCreate,
     AdminLogin,
     AdminOrder,
+    RoleData,
+    PermissionData,
     AdminResponseData,
+    AdminLoginResponseData,
     AdminSortBy,
 )
 
@@ -77,6 +82,22 @@ def login_admin(admin: AdminLogin, db: Session):
             message="Invalid email or password",
         )
 
+    # Fetch role details
+    role = db.query(Role).filter(Role.RoleID == admin_db.RoleID).first()
+    if not role:
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Role not found for this admin",
+        )
+
+    # Fetch permissions for the role
+    permissions = (
+        db.query(Permission)
+        .join(RolePermission, RolePermission.PermissionID == Permission.PermissionID)
+        .filter(RolePermission.RoleID == admin_db.RoleID)
+        .all()
+    )
+
     admin_db.LastLogin = datetime.now(timezone.utc)
     db.commit()
 
@@ -86,19 +107,23 @@ def login_admin(admin: AdminLogin, db: Session):
     refresh_token = create_refresh_token(
         data={"sub": str(admin_db.AdminID), "role_id": admin_db.RoleID}
     )
+    # Prepare role and permissions data
+    role_data = RoleData.model_validate(role)
+    permissions_data = [PermissionData.model_validate(perm) for perm in permissions]
+
     return success_response(
         message="Login successful",
-        data={
-            "AdminID": admin_db.AdminID,
-            "Username": admin_db.Username,
-            "Role": admin_db.RoleID,
-            "last_login": (
-                admin_db.LastLogin.isoformat() if admin_db.LastLogin else None
-            ),
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-        },
+        data=AdminLoginResponseData(
+            AdminID=admin_db.AdminID,
+            Username=admin_db.Username,
+            Email=admin_db.Email,
+            Role=role_data,
+            Permissions=permissions_data,
+            LastLogin=admin_db.LastLogin.isoformat() if admin_db.LastLogin else None,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+        ).model_dump(),
     )
 
 
@@ -161,8 +186,7 @@ def toggle_user_active_status(user_id: int, current_admin_id: int, db: Session):
 
     if not user:
         raise CustomHTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            message="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, message="User not found"
         )
 
     user.IsActive = not user.IsActive

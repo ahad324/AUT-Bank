@@ -1,19 +1,33 @@
 from pydantic import BaseModel, EmailStr, constr, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 
 
 class AdminCreate(BaseModel):
     Username: constr(min_length=3, max_length=50)  # type: ignore
     Email: EmailStr
-    Password: constr(min_length=8, max_length=255)  # type: ignore
+    Password: constr(min_length=8, max_length=255)  # type: ignore # Enforce min 8 characters
     RoleID: int
 
 
 class AdminLogin(BaseModel):
     Email: EmailStr
-    Password: constr(min_length=8, max_length=255)  # type: ignore
+    Password: constr(min_length=8, max_length=255)  # type: ignore # Enforce min 8 characters
+
+
+class RoleData(BaseModel):
+    RoleID: int
+    RoleName: str
+    Description: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PermissionData(BaseModel):
+    PermissionID: int
+    PermissionName: str
+    Description: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AdminResponseData(BaseModel):
@@ -23,6 +37,19 @@ class AdminResponseData(BaseModel):
     RoleID: int
     CreatedAt: datetime
     LastLogin: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminLoginResponseData(BaseModel):
+    AdminID: int
+    Username: str
+    Email: EmailStr
+    Role: RoleData
+    Permissions: List[PermissionData]
+    LastLogin: Optional[str] = None
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
     model_config = ConfigDict(from_attributes=True)
 
 
