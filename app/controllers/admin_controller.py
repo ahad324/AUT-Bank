@@ -591,7 +591,7 @@ def get_user_deposits(
     db: Session,
     page: int = 1,
     per_page: int = 10,
-    status: Optional[str] = None,
+    deposit_status: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     sort_by: Optional[str] = "Timestamp",
@@ -603,8 +603,8 @@ def get_user_deposits(
             status_code=status.HTTP_404_NOT_FOUND, message="User not found"
         )
     query = db.query(Deposit).filter(Deposit.UserID == user_id)
-    if status:
-        query = query.filter(Deposit.Status == status)
+    if deposit_status:
+        query = query.filter(Deposit.Status == deposit_status)
     if start_date:
         query = query.filter(Deposit.Timestamp >= start_date)
     if end_date:

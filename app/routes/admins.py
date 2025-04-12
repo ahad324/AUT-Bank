@@ -205,7 +205,7 @@ def get_user_deposits_route(
     user_id: int,
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
-    status: Optional[str] = Query(None),
+    deposit_status: Optional[str] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     sort_by: Optional[str] = Query("Timestamp"),
@@ -216,7 +216,7 @@ def get_user_deposits_route(
     params = {
         "page": page,
         "per_page": per_page,
-        "status": status,
+        "deposit_status": deposit_status,
         "start_date": str(start_date),
         "end_date": str(end_date),
         "sort_by": sort_by,
@@ -229,7 +229,15 @@ def get_user_deposits_route(
     if cached:
         return PaginatedResponse(**cached)
     result = get_user_deposits(
-        user_id, db, page, per_page, status, start_date, end_date, sort_by, order
+        user_id,
+        db,
+        page,
+        per_page,
+        deposit_status,
+        start_date,
+        end_date,
+        sort_by,
+        order,
     )
     set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)  # 1 hr TTL
     return result
