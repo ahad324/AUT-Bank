@@ -15,7 +15,8 @@ from app.schemas.user_schema import (
 )
 from app.models.user import User
 from app.core.database import get_db
-from app.core.responses import success_response, error_response
+from app.core.responses import success_response
+from app.core.utils import hash_password, check_unique_field
 from app.core.auth import create_access_token, create_refresh_token
 from passlib.context import CryptContext
 from datetime import datetime, timezone
@@ -29,30 +30,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = (
-        db.query(User)
-        .filter(
-            (User.Email == user.Email)
-            | (User.CNIC == user.CNIC)
-            | (User.Username == user.Username)
-        )
-        .first()
-    )
-
-    if existing_user:
-        field = (
-            "Email"
-            if existing_user.Email == user.Email
-            else "CNIC" if existing_user.CNIC == user.CNIC else "Username"
-        )
-        raise CustomHTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            message=f"{field} already registered",
-        )
+    for field in ["Email", "CNIC", "Username"]:
+        check_unique_field(db, User, field, getattr(user, field))
 
     try:
         new_user = User(**user.model_dump(exclude={"Password"}))
-        new_user.Password = pwd_context.hash(user.Password)
+        new_user.Password = hash_password(user.Password)
 
         db.add(new_user)
         db.commit()

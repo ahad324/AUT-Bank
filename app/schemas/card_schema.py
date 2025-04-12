@@ -4,7 +4,7 @@ from typing import Optional
 
 
 class CardCreate(BaseModel):
-    CardNumber: constr(min_length=16, max_length=16, pattern=r"^\d{16}$")  # type: ignore
+    CardNumber: constr(pattern=r"^\d{16}$")  # type: ignore
     Pin: constr(min_length=4, max_length=4, pattern=r"^\d{4}$")  # type: ignore
     ExpirationDate: date
 

@@ -16,7 +16,7 @@ class UserCreate(BaseModel):
     Country: Optional[constr(max_length=50)] = None  # type: ignore
     PostalCode: Optional[constr(max_length=20)] = None  # type: ignore
     PhoneNumber: Optional[constr(max_length=20)] = None  # type: ignore
-    CNIC: constr(min_length=13, max_length=15)  # type: ignore
+    CNIC: constr(pattern=r"^\d{5}-\d{7}-\d{1}$")  # type: ignore
     Email: EmailStr
     Password: constr(min_length=8, max_length=255)  # type: ignore
     IsActive: bool = False

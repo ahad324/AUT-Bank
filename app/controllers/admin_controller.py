@@ -10,9 +10,6 @@ from datetime import date, datetime, timezone
 
 # Schemas
 from app import schemas
-from app.core.event_emitter import emit_event
-from app.core.exceptions import CustomHTTPException, DatabaseError
-from app.core.schemas import PaginatedResponse
 from app.models.loan import Loan, LoanType
 from app.models.rbac import Permission, Role, RolePermission
 from app.models.user import User
@@ -35,8 +32,11 @@ from app.models.transfer import Transfer
 from app.models.withdrawal import Withdrawal
 
 # Core
+from app.core.utils import hash_password, check_unique_field
+from app.core.exceptions import CustomHTTPException, DatabaseError
+from app.core.schemas import PaginatedResponse
 from app.core.auth import create_access_token, create_refresh_token
-from app.core.responses import success_response, error_response
+from app.core.responses import success_response
 from app.schemas.card_schema import CardResponse
 from app.schemas.deposit_schema import DepositResponse
 from app.schemas.loan_schema import LoanResponse
@@ -48,22 +48,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def register_admin(admin: AdminCreate, db: Session):
-    existing_admin = (
-        db.query(Admin)
-        .filter((Admin.Email == admin.Email) | (Admin.Username == admin.Username))
-        .first()
-    )
-
-    if existing_admin:
-        raise CustomHTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            message="Admin with this email or username already exists",
-        )
+    check_unique_field(db, Admin, "Email", admin.Email)
+    check_unique_field(db, Admin, "Username", admin.Username)
 
     new_admin = Admin(
         Username=admin.Username,
         Email=admin.Email,
-        Password=pwd_context.hash(admin.Password),
+        Password=hash_password(admin.Password),
         RoleID=admin.RoleID,
     )
 
