@@ -150,7 +150,7 @@ def update_admin_password_route(
     return update_admin_password(current_admin.AdminID, password_update, db)
 
 
-@router.get("/{admin_id}", response_model=BaseResponse)
+@router.get("/admins/{admin_id}", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def get_admin_by_id_route(
     request: Request,
@@ -167,7 +167,7 @@ def get_admin_by_id_route(
     return result
 
 
-@router.delete("/{admin_id}", response_model=BaseResponse)
+@router.delete("/admins/{admin_id}", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def delete_admin_route(
     request: Request,
