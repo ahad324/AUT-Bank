@@ -260,7 +260,7 @@ def get_loan_by_id_route(
     return result
 
 
-@router.post("/loans/{loan_id}/reject", response_model=BaseResponse)
+@router.put("/loans/{loan_id}/reject", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 async def reject_loan_route(
     request: Request,
@@ -518,7 +518,7 @@ def list_all_loans(
     return result
 
 
-@router.post("/loans/{loan_id}/approve", response_model=BaseResponse)
+@router.put("/loans/{loan_id}/approve", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 async def approve_loan(
     request: Request,
