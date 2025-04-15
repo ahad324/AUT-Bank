@@ -98,7 +98,7 @@ def list_permissions_route(
     return result
 
 
-@router.post("/role-permissions", response_model=BaseResponse)
+@router.post("/role_permissions", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def assign_permissions_to_role_route(
     request: Request,
@@ -111,7 +111,7 @@ def assign_permissions_to_role_route(
     return result
 
 
-@router.delete("/role-permissions", response_model=BaseResponse)
+@router.delete("/role_permissions", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def remove_permissions_from_role_route(
     request: Request,

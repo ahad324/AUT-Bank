@@ -72,7 +72,7 @@ from fastapi import BackgroundTasks
 router = APIRouter()
 
 
-@router.post("/bootstrap-admin", response_model=BaseResponse)
+@router.post("/bootstrap_admin", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def bootstrap_admin(
     request: Request, admin: AdminCreate, db: Session = Depends(get_db)
@@ -385,7 +385,7 @@ def list_all_admins(
     return result
 
 
-@router.put("/users/toggle-user-status/{user_id}", response_model=BaseResponse)
+@router.put("/users/toggle_user_status/{user_id}", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def toggle_user_status(
     request: Request,
