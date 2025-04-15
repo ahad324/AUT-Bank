@@ -37,9 +37,9 @@ from app.controllers.admin_controller import (
     get_card_by_id,
     unblock_card,
     get_transaction_by_id,
+    get_all_users,
 )
 from app.controllers.deposits.admins import create_deposit
-from app.controllers.admin_controller import get_all_users
 from app.controllers.transactions.admins import get_all_transactions
 from app.controllers.loans.admins import approve_loan, reject_loan, get_all_loans
 from app.controllers.cards.admins import list_all_cards, block_card, update_card_admin
