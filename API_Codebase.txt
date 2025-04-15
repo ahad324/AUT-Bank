@@ -4675,7 +4675,7 @@ from fastapi import BackgroundTasks
 router = APIRouter()
 
 
-@router.post("/bootstrap-admin", response_model=BaseResponse)
+@router.post("/bootstrap_admin", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def bootstrap_admin(
     request: Request, admin: AdminCreate, db: Session = Depends(get_db)
@@ -4988,7 +4988,7 @@ def list_all_admins(
     return result
 
 
-@router.put("/users/toggle-user-status/{user_id}", response_model=BaseResponse)
+@router.put("/users/toggle_user_status/{user_id}", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def toggle_user_status(
     request: Request,
@@ -5406,7 +5406,7 @@ def list_permissions_route(
     return result
 
 
-@router.post("/role-permissions", response_model=BaseResponse)
+@router.post("/role_permissions", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def assign_permissions_to_role_route(
     request: Request,
@@ -5419,7 +5419,7 @@ def assign_permissions_to_role_route(
     return result
 
 
-@router.delete("/role-permissions", response_model=BaseResponse)
+@router.delete("/role_permissions", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
 def remove_permissions_from_role_route(
     request: Request,

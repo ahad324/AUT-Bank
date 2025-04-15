@@ -47,3 +47,6 @@ logs/
 
 # Development files
 .qodo
+
+API_Codebase.txt
+API_Structure.txt
