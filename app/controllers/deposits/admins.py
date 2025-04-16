@@ -12,17 +12,16 @@ from fastapi import BackgroundTasks
 
 
 async def create_deposit(
-    user_id: int, 
-    admin_id: int, 
-    deposit: DepositCreate, 
+    user_id: int,
+    admin_id: int,
+    deposit: DepositCreate,
     db: Session,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
 ):
     user = db.query(User).filter(User.UserID == user_id).with_for_update().first()
     if not user:
         raise CustomHTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            message="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, message="User not found"
         )
 
     amount = Decimal(str(deposit.Amount))
@@ -55,10 +54,10 @@ async def create_deposit(
                 "amount": float(amount),
                 "balance": float(user.Balance),
                 "reference": new_deposit.ReferenceNumber,
-                "timestamp": str(new_deposit.Timestamp)
+                "timestamp": str(new_deposit.Timestamp),
             },
             user_id=user_id,
-            background_tasks=background_tasks
+            background_tasks=background_tasks,
         )
 
         # Notify admins about the deposit
@@ -68,10 +67,10 @@ async def create_deposit(
                 "user_id": user_id,
                 "amount": float(amount),
                 "admin_id": admin_id,
-                "reference": new_deposit.ReferenceNumber
+                "reference": new_deposit.ReferenceNumber,
             },
             broadcast=True,
-            background_tasks=background_tasks
+            background_tasks=background_tasks,
         )
 
         return success_response(

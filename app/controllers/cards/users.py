@@ -87,9 +87,7 @@ def list_cards(
     return PaginatedResponse(
         success=True,
         message="No cards found" if not cards else "Cards retrieved successfully",
-        data={
-            "cards": [CardResponse.model_validate(card).model_dump() for card in cards]
-        },
+        data={[CardResponse.model_validate(card).model_dump() for card in cards]},
         page=page,
         per_page=per_page,
         total_items=total_items,

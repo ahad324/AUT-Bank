@@ -171,7 +171,7 @@ def get_all_admins(
     return PaginatedResponse(
         success=True,
         message="Admins retrieved successfully",
-        data={"admins": admin_data},
+        data={admin_data},
         page=page,
         per_page=per_page,
         total_items=total_admins,
@@ -257,9 +257,7 @@ def get_all_users(
     return PaginatedResponse(
         success=True,
         message="Users retrieved successfully",
-        data={
-            "users": [UserResponseData.model_validate(u).model_dump() for u in users]
-        },
+        data={[UserResponseData.model_validate(u).model_dump() for u in users]},
         page=page,
         per_page=per_page,
         total_items=total_items,
@@ -607,11 +605,7 @@ def get_user_deposits(
     return PaginatedResponse(
         success=True,
         message="Deposits retrieved successfully",
-        data={
-            "deposits": [
-                DepositResponse.model_validate(d).model_dump() for d in deposits
-            ]
-        },
+        data={[DepositResponse.model_validate(d).model_dump() for d in deposits]},
         page=page,
         per_page=per_page,
         total_items=total_deposits,
