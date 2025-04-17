@@ -144,7 +144,7 @@ def get_all_admins(
     if email:
         query = query.filter(Admin.Email.ilike(f"%{email}%"))
     if role:
-        query = query.filter(Admin.Role == role)
+        query = query.filter(Admin.RoleID == role)
 
     # Sorting
     sort_column = {
@@ -177,6 +177,70 @@ def get_all_admins(
         total_items=total_admins,
         total_pages=(total_admins + per_page - 1) // per_page,
     )
+
+
+def update_other_admin(
+    admin_id: int, update_data: AdminUpdate, current_admin_id: int, db: Session
+):
+    admin = db.query(Admin).filter(Admin.AdminID == admin_id).first()
+    if not admin:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Admin not found"
+        )
+
+    # Check if current admin is SuperAdmin
+    current_admin = db.query(Admin).filter(Admin.AdminID == current_admin_id).first()
+    current_role = db.query(Role).filter(Role.RoleID == current_admin.RoleID).first()
+    if current_role.RoleName != "SuperAdmin":
+        raise CustomHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Only SuperAdmin can update other admins",
+        )
+
+    update_data = update_data.model_dump(exclude_unset=True)
+    if "Username" in update_data and update_data["Username"] != admin.Username:
+        if db.query(Admin).filter(Admin.Username == update_data["Username"]).first():
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Username already exists",
+            )
+    if "Email" in update_data and update_data["Email"] != admin.Email:
+        if db.query(Admin).filter(Admin.Email == update_data["Email"]).first():
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, message="Email already exists"
+            )
+    elif "RoleID" in update_data:
+        role = db.query(Role).filter(Role.RoleID == update_data["RoleID"]).first()
+        if not role:
+            raise CustomHTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message=f"Role ID {update_data['RoleID']} not found",
+            )
+
+    for key, value in update_data.items():
+        setattr(admin, key, value)
+
+    try:
+        db.commit()
+        db.refresh(admin)
+        return success_response(
+            message="Admin updated successfully",
+            data=AdminResponseData(
+                AdminID=admin.AdminID,
+                Username=admin.Username,
+                Email=admin.Email,
+                RoleID=admin.RoleID,
+                CreatedAt=admin.CreatedAt,
+                LastLogin=admin.LastLogin,
+            ).model_dump(),
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to update admin",
+            details={"error": str(e)},
+        )
 
 
 def toggle_user_active_status(user_id: int, current_admin_id: int, db: Session):

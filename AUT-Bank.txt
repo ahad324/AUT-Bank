@@ -230,6 +230,7 @@ INSERT INTO Permissions (PermissionName, Description) VALUES
 ('admin:view_all', 'View all admins'),
 ('admin:view_self', 'View own admin profile'),
 ('admin:update_self', 'Update own admin profile'),
+('admin:update_other', 'Update other admins profile'),
 ('admin:delete', 'Delete other admin accounts'),
 ('user:approve', 'Approve user accounts'),
 ('user:view_all', 'View all users'),

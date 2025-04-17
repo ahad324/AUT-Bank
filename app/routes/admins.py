@@ -24,6 +24,7 @@ from app.controllers.admin_controller import (
     register_admin,
     login_admin,
     toggle_user_active_status,
+    update_other_admin,
     update_user,
     get_analytics_summary,
     get_current_admin,
@@ -164,6 +165,21 @@ def get_admin_by_id_route(
         return BaseResponse(**cached)
     result = get_admin_by_id(admin_id, db)
     set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL
+    return result
+
+
+@router.put("/admins/{admin_id}", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
+def update_admin_route(
+    request: Request,
+    admin_id: int,
+    update_data: AdminUpdate,
+    current_admin: Admin = Depends(check_permission("admin:update_other")),
+    db: Session = Depends(get_db),
+):
+    result = update_other_admin(admin_id, update_data, current_admin.AdminID, db)
+    invalidate_cache(f"admin:{admin_id}")
+    invalidate_cache("admins:")
     return result
 
 
