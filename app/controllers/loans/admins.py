@@ -199,7 +199,7 @@ def get_all_loans(
         return PaginatedResponse(
             success=True,
             message="No loans found",
-            data={[]},
+            data={"loans": []},
             page=page,
             per_page=per_page,
             total_items=0,
@@ -226,7 +226,7 @@ def get_all_loans(
     return PaginatedResponse(
         success=True,
         message="Loans retrieved successfully",
-        data={[loan.model_dump() for loan in loan_list]},
+        data={"loans": [loan.model_dump() for loan in loan_list]},
         page=page,
         per_page=per_page,
         total_items=total_loans,
