@@ -14,6 +14,7 @@ from app.controllers.cards.users import (
 from app.controllers.transactions.users import get_user_transactions
 from app.controllers.transfers.users import create_transfer
 from app.controllers.user_controller import (
+    check_field_uniqueness,
     export_user_transactions,
     register_user,
     login_user,
@@ -35,6 +36,7 @@ from app.schemas.card_schema import CardCreate, CardUpdate
 from app.schemas.transfer_schema import TransferCreate
 from app.schemas.user_schema import (
     PaginationParams,
+    UniquenessCheck,
     UserCreate,
     UserLogin,
     UserPasswordUpdate,
@@ -64,6 +66,14 @@ import json
 import os
 
 router = APIRouter()
+
+
+@router.post("/check-uniqueness", response_model=BaseResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
+async def check_uniqueness(
+    request: Request, check: UniquenessCheck, db: Session = Depends(get_db)
+):
+    return await check_field_uniqueness(check.field, check.value, db)
 
 
 @router.post("/register", response_model=BaseResponse)

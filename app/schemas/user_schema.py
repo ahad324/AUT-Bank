@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr, constr, validator, ConfigDict
+import re
+from pydantic import BaseModel, EmailStr, constr, field_validator, ConfigDict
 from datetime import date, datetime
 from typing import Optional
 from enum import Enum
@@ -23,16 +24,46 @@ class UserCreate(BaseModel):
     AccountType: str
     DateOfBirth: date
 
-    @validator("AccountType")
+    @field_validator("AccountType")
     def validate_account_type(cls, v):
         if v not in ("Savings", "Current"):
             raise ValueError("AccountType must be either 'Savings' or 'Current'")
         return v
 
-    @validator("CNIC")
+    @field_validator("CNIC")
     def validate_cnic_format(cls, v):
         if not (v[5] == "-" and v[13] == "-" and len(v) == 15):
             raise ValueError("CNIC must be in format XXXXX-XXXXXXX-X")
+        return v
+
+
+class UniquenessCheck(BaseModel):
+    field: str
+    value: str
+
+    @field_validator("field")
+    @classmethod
+    def validate_field(cls, v):
+        allowed_fields = {"Email", "CNIC", "Username"}
+        if v not in allowed_fields:
+            raise ValueError("Field must be Email, CNIC, or Username")
+        return v
+
+    @field_validator("value")
+    @classmethod
+    def validate_value(cls, v, values):
+        field = values.data.get("field")  # Access 'field' from values.data
+
+        if field == "Email":
+            if not re.match(r"^[^@]+@[^@]+\.[^@]+$", v):
+                raise ValueError("Invalid email format")
+        elif field == "CNIC":
+            if not re.match(r"^\d{5}-\d{7}-\d{1}$", v):
+                raise ValueError("CNIC must be in format XXXXX-XXXXXXX-X")
+        elif field == "Username":
+            if not (3 <= len(v) <= 50):
+                raise ValueError("Username must be between 3 and 50 characters")
+
         return v
 
 
@@ -62,7 +93,7 @@ class UserLogin(BaseModel):
     login_id: str  # Can be either email or username
     Password: constr(min_length=8, max_length=255)  # type: ignore
 
-    @validator("login_id")
+    @field_validator("login_id")
     def validate_login_id(cls, v):
         if not v:
             raise ValueError("Login ID cannot be empty")

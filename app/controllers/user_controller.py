@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from fastapi import Depends, status
 from sqlalchemy.orm import Session, aliased
 from app.core.exceptions import CustomHTTPException, DatabaseError
+from app.core.rate_limiter import CACHE_TTL_SHORT, get_redis_client
 from app.schemas.user_schema import (
     UserCreate,
     UserLogin,
@@ -27,6 +28,37 @@ from app.models.withdrawal import Withdrawal
 from app.models.loan import Loan
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+async def check_field_uniqueness(
+    field: str,
+    value: str,
+    db: Session,
+):
+    if field not in ["Email", "CNIC", "Username"]:
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="Invalid field. Must be Email, CNIC, or Username",
+        )
+
+    # Check cache first
+    redis_client = get_redis_client()
+    cache_key = f"uniqueness:{field}:{value}"
+    cached_result = redis_client.get(cache_key)
+    if cached_result:
+        return success_response(
+            message=f"{field} availability checked from cache",
+            data={"is_unique": cached_result == "true"},
+        )
+
+    # Query database
+    exists = db.query(User).filter(getattr(User, field) == value).first() is not None
+
+    redis_client.setex(cache_key, CACHE_TTL_SHORT, "false" if exists else "true")
+
+    return success_response(
+        message=f"{field} availability checked", data={"is_unique": not exists}
+    )
 
 
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
