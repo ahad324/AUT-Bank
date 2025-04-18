@@ -1,72 +1,293 @@
-Secure Banking System API (FastAPI)
 
-This is a professional and modular Secure Banking System built using FastAPI, designed with a clean architecture and robust features like role-based access control (RBAC), rate limiting with Redis, token-based authentication, and modular route/controller separation.
+# AUT Bank API 🏦
 
-Features:
-- FastAPI-powered asynchronous backend
-- Modular structure (routes, controllers, schemas, core logic)
-- Role-Based Access Control (RBAC)
-- Redis-backed rate limiting via SlowAPI
-- Secure authentication system with JWT tokens
-- SQL Server database integration
-- Admin and User support with different permissions
-- Support for deposits, withdrawals, loans, card management, and more
+Welcome to the **AUT Bank API**, a powerful and secure backend service crafted by **AbdulAhad** to empower modern banking applications. Built with **FastAPI**, **SQLAlchemy**, and **Microsoft SQL Server**, this API offers a comprehensive suite of banking functionalities, including user management, transactions, loans, cards, and role-based access control (RBAC). This README provides an overview of the project, its features, setup instructions, and usage guidelines.
 
-Project Structure (partial):
-controllers/
-├── cards/, deposits/, loans/, transfers/, withdrawals/
-├── admin_controller.py, user_controller.py, rbac_controller.py
-core/
-├── auth.py, database.py, rate_limiter.py, rbac.py, ...
-models/
-routes/
-schemas/
-main.py
+## Table of Contents 📋
 
-Requirements:
-- Python 3.10+
-- Redis server
-- SQL Server instance (hosted or local)
-- pip install -r requirements.txt
+- [Project Overview](#project-overview) 🌟
+- [Key Features](#key-features) 🚀
+- [Technologies Used](#technologies-used) 🛠️
+- [Directory Structure](#directory-structure) 📂
+- [Installation](#installation) ⚙️
+- [Configuration](#configuration) 🔧
+- [Running the Application](#running-the-application) ▶️
+- [API Documentation](#api-documentation) 📚
+- [Authentication](#authentication) 🔐
+- [Rate Limiting](#rate-limiting) ⏱️
+- [WebSocket Support](#websocket-support) 🌐
+- [Caching](#caching) 💾
+- [Contributing](#contributing) 🤝
 
-Environment Variables:
-Create a .env file in the root of your project and define the following variables:
+## Project Overview 🌟
 
-DATABASE_URL="your_database_url"
-PORT="8000"
-WORKERS="4"
-MAX_REQUESTS="1000"
-TIMEOUT="120"
-KEEPALIVE="60"
-RELOAD="true"
+The **AUT Bank API**, developed by **AbdulAhad**, serves as the backbone for a banking system, enabling seamless management of users, admins, transactions, loans, cards, and deposits. It incorporates modern web development practices, including RESTful API design, JWT-based authentication, rate limiting, and WebSocket for real-time updates. The API is highly modular, with separate controllers, models, schemas, and routes for each feature, ensuring maintainability and scalability.
 
-# JWT Config
-SECRET_KEY="699fa43efa4989910413cca9f6799c46d8bd2bfef80dad365b5d2c09134b602c"
-ALGORITHM="HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES="3000"
-REFRESH_TOKEN_EXPIRE_DAYS="7"
+## Key Features 🚀
 
-# CORS
-ALLOWED_ORIGINS="*"
+- **User Management** 👤:
+  - User registration, login, and profile management.
+  - Admin management with role-based permissions.
+  - Toggle user account status (active/inactive).
+- **Transaction Management** 💸:
+  - Support for deposits, withdrawals, and transfers.
+  - Transaction history with filtering and pagination.
+  - Export transactions to CSV for reporting.
+- **Card Management** 💳:
+  - Create, update, block, and unblock user cards.
+  - Card status tracking (Active, Inactive, Blocked).
+- **Loan Management** 📈:
+  - Apply for loans, approve/reject loans, and make loan payments.
+  - View loan types and payment history.
+- **Role-Based Access Control (RBAC)** 🔒:
+  - Create, update, and delete roles and permissions.
+  - Assign permissions to roles and manage admin access.
+- **Analytics** 📊:
+  - Summary of user activity, transaction volumes, and loan statistics.
+  - Real-time analytics for admins and users.
+- **WebSocket Support** 📡:
+  - Real-time notifications for users and admins.
+- **Security** 🛡️:
+  - JWT-based authentication with access and refresh tokens.
+  - Password hashing using bcrypt.
+  - Rate limiting to prevent abuse.
+- **Caching** ⚡:
+  - Redis-based caching for frequently accessed data to enhance performance.
 
-# Redis and Rate Limiting
-REDIS_URL="redis://localhost:6379/0"
-RATE_LIMIT_LOGIN="5/minute"
-RATE_LIMIT_ADMIN_CRITICAL="10/minute"
-RATE_LIMIT_USER_DEFAULT="100/hour"
-RATE_LIMIT_PUBLIC="1000/hour"
-RATE_LIMIT_EXPORT="5/hour"
+## Technologies Used 🛠️
 
-Generating a Secure SECRET_KEY:
-To generate a new SECRET_KEY, run this command:
-python -c "import secrets; print(secrets.token_hex(32))"
+- **Backend Framework**: FastAPI 🌐
+- **Database**: Microsoft SQL Server with SQLAlchemy ORM 🗄️
+- **Authentication**: JWT (JSON Web Tokens) 🔑
+- **Password Hashing**: Passlib (bcrypt) 🔒
+- **Caching**: Redis 💾
+- **Rate Limiting**: SlowAPI ⏱️
+- **WebSocket**: FastAPI WebSocket support 📡
+- **Middleware**: CORS, GZip compression 🌍
+- **Validation**: Pydantic for data validation ✅
+- **Environment Management**: Python-dotenv ⚙️
+- **Server**: Uvicorn 🚀
 
-Running the App:
-Start the app with:
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+## Directory Structure 📂
 
-Or use environment configurations:
-uvicorn main:app --host 0.0.0.0 --port $PORT --workers $WORKERS --limit-max-requests $MAX_REQUESTS --timeout-keep-alive $KEEPALIVE --reload
+The project is organized into a modular structure to promote separation of concerns:
 
-Note:
-Make sure Redis is running on your machine (redis-server) before launching the app to avoid errors with rate limiting.
+```
+AUT-Bank/
+├── controllers/               # Business logic for various modules
+│   ├── admin_controller.py
+│   ├── cards/
+│   ├── deposits/
+│   ├── loans/
+│   ├── rbac_controller.py
+│   ├── transactions/
+│   ├── transfers/
+│   ├── user_controller.py
+│   ├── withdrawals/
+├── core/                      # Core utilities and configurations
+│   ├── auth.py
+│   ├── database.py
+│   ├── event_emitter.py
+│   ├── exceptions.py
+│   ├── rate_limiter.py
+│   ├── rbac.py
+│   ├── responses.py
+│   ├── schemas.py
+│   ├── utils.py
+│   ├── websocket_manager.py
+├── models/                    # SQLAlchemy database models
+│   ├── admin.py
+│   ├── card.py
+│   ├── deposit.py
+│   ├── loan.py
+│   ├── rbac.py
+│   ├── transfer.py
+│   ├── user.py
+│   ├── withdrawal.py
+├── routes/                    # API route definitions
+│   ├── admins.py
+│   ├── atm.py
+│   ├── rbac.py
+│   ├── users.py
+│   ├── websocket.py
+├── schemas/                   # Pydantic schemas for request/response validation
+│   ├── admin_schema.py
+│   ├── card_schema.py
+│   ├── deposit_schema.py
+│   ├── loan_schema.py
+│   ├── rbac_schema.py
+│   ├── transfer_schema.py
+│   ├── user_schema.py
+│   ├── withdrawal_schema.py
+├── main.py                    # Application entry point
+├── README.md                  # Project documentation
+```
+
+## Installation ⚙️
+
+Follow these steps to set up the AUT Bank API locally:
+
+### Prerequisites
+
+- Python 3.9+ 🐍
+- Microsoft SQL Server 🗄️
+- Redis 💾
+- Git 🌿
+
+### Steps
+
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/your-repo/aut-bank-api.git
+   cd aut-bank-api
+   ```
+
+2. **Create a Virtual Environment**:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set Up Microsoft SQL Server**:
+   - Create a database in SQL Server:
+     ```sql
+     CREATE DATABASE aut_bank;
+     ```
+   - Update the database URL in the `.env` file (see [Configuration](#configuration)).
+
+5. **Set Up Redis**:
+   - Install and run Redis locally or use a hosted Redis service.
+   - Update the Redis URL in the `.env` file.
+
+## Configuration 🔧
+
+Create a `.env` file in the project root with the following environment variables:
+
+```env
+# Database Configuration
+DATABASE_URL=mssql+pyodbc://username:password@server/aut_bank?driver=ODBC+Driver+17+for+SQL+Server
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379/0
+
+# JWT Configuration
+SECRET_KEY=your-secret-key
+ALGORITHM=HS256
+
+# CORS Configuration
+ALLOWED_ORIGINS=http://localhost:3000,http://example.com
+
+# Rate Limiting
+RATE_LIMIT_PUBLIC=1000/hour
+RATE_LIMIT_LOGIN=5/minute
+RATE_LIMIT_ADMIN_CRITICAL=10/minute
+RATE_LIMIT_USER_DEFAULT=100/hour
+RATE_LIMIT_EXPORT=5/hour
+
+# Server Configuration
+PORT=8000
+WORKERS=1
+RELOAD=true  # Set to false in production
+```
+
+Generate a secure `SECRET_KEY` for JWT using a tool like `openssl`:
+
+```bash
+openssl rand -hex 32
+```
+
+## Running the Application ▶️
+
+1. **Apply Database Migrations** (if using a migration tool like Alembic):
+   ```bash
+   alembic upgrade head
+   ```
+
+2. **Start the Application**:
+   ```bash
+   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+3. **Access the API**:
+   - The API will be available at `http://localhost:8000`.
+   - Interactive API documentation is available at:
+     - Swagger UI: `http://localhost:8000/docs` 📘
+     - ReDoc: `http://localhost:8000/redoc` 📙
+
+## API Documentation 📚
+
+The AUT Bank API provides interactive documentation via Swagger UI and ReDoc. Key endpoints include:
+
+- **User Routes** (`/api/v1/users`) 👥:
+  - Register, login, manage profile, apply for loans, manage cards, and transfer funds.
+- **Admin Routes** (`/api/v1/admins`) 🛠️:
+  - Manage admins, users, loans, cards, and transactions.
+- **ATM Routes** (`/api/v1/atm`) 🏧:
+  - Process withdrawals via card and PIN.
+- **RBAC Routes** (`/api/v1/rbac`) 🔐:
+  - Manage roles, permissions, and role-permission assignments.
+- **WebSocket Routes** (`/api/v1/ws`) 📡:
+  - Real-time notifications for users and admins.
+
+For detailed endpoint information, refer to the Swagger UI at `/docs`.
+
+## Authentication 🔐
+
+The API uses **JWT-based authentication** with access and refresh tokens. Key authentication endpoints:
+
+- **User Login**: `POST /api/v1/users/login` 🔑
+- **Admin Login**: `POST /api/v1/admins/login` 🔑
+- **Token Refresh**: `POST /api/v1/users/refresh` 🔄
+
+Tokens must be included in the `Authorization` header as `Bearer <token>` for protected routes.
+
+## Rate Limiting ⏱️
+
+The API implements rate limiting using **SlowAPI** to prevent abuse. Configurable limits are defined in the `.env` file, such as:
+
+- Public endpoints: `1000/hour`
+- Login attempts: `5/minute`
+- Admin-critical operations: `10/minute`
+- Export operations: `5/hour`
+
+Rate limits are enforced per IP address and can be customized.
+
+## WebSocket Support 🌐
+
+The API supports real-time communication via WebSocket for both users and admins:
+
+- **User WebSocket**: `/api/v1/ws/user?token=<jwt-token>` 📡
+- **Admin WebSocket**: `/api/v1/ws/admin?token=<jwt-token>` 📡
+
+WebSocket connections require a valid JWT token and are managed by the `ConnectionManager` class.
+
+## Caching 💾
+
+The API uses **Redis** for caching frequently accessed data to improve performance. Cache durations are configurable:
+
+- **Short TTL**: 5 minutes (e.g., analytics, transactions)
+- **Medium TTL**: 1 hour (e.g., user profiles, cards)
+- **Long TTL**: 24 hours (e.g., roles, permissions)
+
+Cache invalidation is triggered on data updates to ensure consistency.
+
+## Contributing 🤝
+
+Contributions to the AUT Bank API are welcome! To contribute:
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/your-feature`).
+3. Commit your changes (`git commit -m "Add your feature"`).
+4. Push to the branch (`git push origin feature/your-feature`).
+5. Open a pull request.
+
+Please ensure your code follows the project's coding standards and includes appropriate tests.
+
+---
+
+**AUT Bank API**, created by **AbdulAhad**, is designed to provide a secure, scalable, and efficient backend for banking applications.
