@@ -159,7 +159,7 @@ def get_user_transactions(
         return PaginatedResponse(
             success=True,
             message="No transactions found",
-            data={"transactions": []},
+            data={"items": []},
             page=page,
             per_page=per_page,
             total_items=0,
@@ -229,7 +229,7 @@ def get_user_transactions(
     return PaginatedResponse(
         success=True,
         message="Transactions retrieved successfully",
-        data={"transactions": transaction_list},
+        data={"items": transaction_list},
         page=page,
         per_page=per_page,
         total_items=total_items,

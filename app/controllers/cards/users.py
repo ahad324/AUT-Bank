@@ -88,7 +88,7 @@ def list_cards(
         success=True,
         message="No cards found" if not cards else "Cards retrieved successfully",
         data={
-            "cards": [CardResponse.model_validate(card).model_dump() for card in cards]
+            "items": [CardResponse.model_validate(card).model_dump() for card in cards]
         },
         page=page,
         per_page=per_page,

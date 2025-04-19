@@ -282,7 +282,7 @@ def get_user_loans(
         return PaginatedResponse(
             success=True,
             message="No loans found for this user",
-            data={"loans": []},
+            data={"items": []},
             page=page,
             per_page=per_page,
             total_items=0,
@@ -309,7 +309,7 @@ def get_user_loans(
     return PaginatedResponse(
         success=True,
         message="Loans retrieved successfully",
-        data={"loans": [loan.model_dump() for loan in loan_list]},
+        data={"items": [loan.model_dump() for loan in loan_list]},
         page=page,
         per_page=per_page,
         total_items=total_loans,
@@ -343,7 +343,7 @@ def get_loan_payments(
         return PaginatedResponse(
             success=True,
             message="No payments found for this loan",
-            data={"payments": []},
+            data={"items": []},
             page=page,
             per_page=per_page,
             total_items=total_payments,
@@ -359,7 +359,7 @@ def get_loan_payments(
     return PaginatedResponse(
         success=True,
         message="Payments retrieved successfully",
-        data={"payments": [payment.model_dump() for payment in payment_list]},
+        data={"items": [payment.model_dump() for payment in payment_list]},
         page=page,
         per_page=per_page,
         total_items=total_payments,
