@@ -18,6 +18,7 @@ from app.controllers.user_controller import (
     export_user_transactions,
     register_user,
     login_user,
+    send_verification_email,
     update_current_user,
     update_user_password,
     get_user_analytics_summary,
@@ -32,9 +33,11 @@ from app.controllers.loans.users import (
 )
 
 # Schemas
+from app.core.exceptions import CustomHTTPException
 from app.schemas.card_schema import CardCreate, CardUpdate
 from app.schemas.transfer_schema import TransferCreate
 from app.schemas.user_schema import (
+    EmailVerificationRequest,
     PaginationParams,
     UniquenessCheck,
     UserCreate,
@@ -68,12 +71,42 @@ import os
 router = APIRouter()
 
 
-@router.post("/check-uniqueness", response_model=BaseResponse)
+@router.post("/check_uniqueness", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 async def check_uniqueness(
     request: Request, check: UniquenessCheck, db: Session = Depends(get_db)
 ):
     return await check_field_uniqueness(check.field, check.value, db)
+
+
+@router.post("/send_verification", response_model=BaseResponse)
+async def send_verification(
+    request: Request,
+    verification: EmailVerificationRequest,
+    db: Session = Depends(get_db),
+):
+    # Verify secret code before checking cache
+    expected_secret = os.getenv("SECRET_CODE_EMAIL")
+    if not expected_secret:
+        raise CustomHTTPException(
+            status_code=500,
+            message="Server configuration error",
+            details={"error": "Secret code not configured"},
+        )
+    if verification.secret_code != expected_secret:
+        raise CustomHTTPException(
+            status_code=403,
+            message="Invalid secret code",
+            details={"error": "Provided secret code does not match"},
+        )
+
+    cache_key = get_cache_key(request, f"email_verification:{verification.email}")
+    cached = get_from_cache(cache_key)
+    if cached:
+        return BaseResponse(**cached)
+    result = send_verification_email(verification, db)
+    set_to_cache(cache_key, result, CACHE_TTL_SHORT)  # 5 min TTL
+    return result
 
 
 @router.post("/register", response_model=BaseResponse)

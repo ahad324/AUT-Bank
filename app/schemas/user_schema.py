@@ -138,8 +138,31 @@ class LoginResponseData(BaseModel):
     Username: str
     Email: EmailStr
     AccountType: str
+    Balance: float
     last_login: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={Decimal: lambda v: float(v)},
+    )
+
+
+class EmailVerificationType(str, Enum):
+    otp = "otp"
+    message = "message"
+
+
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+    content: constr(min_length=1, max_length=1000)  # type: ignore
+    type: EmailVerificationType
+    secret_code: constr(min_length=1, max_length=100)  # type: ignore
+
+    @field_validator("content")
+    def validate_content(cls, v, values):
+        if "type" in values.data and values.data["type"] == EmailVerificationType.otp:
+            if not re.match(r"^\d{4,6}$", v):
+                raise ValueError("OTP must be a 4-6 digit number")
+        return v
 
 
 class SortBy(str, Enum):

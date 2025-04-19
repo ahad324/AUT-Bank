@@ -1,5 +1,6 @@
 from io import StringIO
 import csv
+import os
 from typing import Optional
 from fastapi.responses import StreamingResponse
 from fastapi import Depends, status
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session, aliased
 from app.core.exceptions import CustomHTTPException, DatabaseError
 from app.core.rate_limiter import CACHE_TTL_SHORT, get_redis_client
 from app.schemas.user_schema import (
+    EmailVerificationRequest,
+    EmailVerificationType,
     UserCreate,
     UserLogin,
     UserPasswordUpdate,
@@ -17,7 +20,7 @@ from app.schemas.user_schema import (
 from app.models.user import User
 from app.core.database import get_db
 from app.core.responses import success_response
-from app.core.utils import hash_password, check_unique_field
+from app.core.utils import hash_password, check_unique_field, send_email
 from app.core.auth import create_access_token, create_refresh_token
 from passlib.context import CryptContext
 from datetime import datetime, timezone
@@ -58,6 +61,43 @@ async def check_field_uniqueness(
 
     return success_response(
         message=f"{field} availability checked", data={"is_unique": not exists}
+    )
+
+
+def send_verification_email(request: EmailVerificationRequest, db: Session):
+    # Verify secret code
+    expected_secret = os.getenv("SECRET_CODE_EMAIL")
+    print(expected_secret, request.secret_code)
+    if not expected_secret:
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Server configuration error",
+            details={"error": "Secret code not configured"},
+        )
+    if request.secret_code != expected_secret:
+        raise CustomHTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            message="Invalid secret code",
+            details={"error": "Provided secret code does not match"},
+        )
+
+    subject = (
+        "AUT Bank OTP Verification"
+        if request.type == EmailVerificationType.otp
+        else "AUT Bank Verification Message"
+    )
+    body = (
+        f"Your verification OTP is: {request.content}"
+        if request.type == EmailVerificationType.otp
+        else request.content
+    )
+
+    send_email(to_email=request.email, subject=subject, body=body)
+
+    return success_response(
+        message="Verification email sent successfully",
+        data={"email": request.email, "type": request.type},
+        status_code=status.HTTP_200_OK,
     )
 
 
