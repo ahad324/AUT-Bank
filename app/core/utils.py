@@ -31,7 +31,7 @@ def send_email(to_email: str, subject: str, body: str) -> None:
     msg["To"] = to_email
     msg["Subject"] = subject
 
-    msg.attach(MIMEText(body, "plain"))
+    msg.attach(MIMEText(body, "html"))
 
     try:
         with smtplib.SMTP(smtp_server, smtp_port) as server:

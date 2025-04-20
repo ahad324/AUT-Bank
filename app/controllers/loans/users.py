@@ -229,7 +229,7 @@ def get_loan_types(db: Session):
     return success_response(
         message="Loan types retrieved successfully",
         data={
-            "loan_types": [
+            "items": [
                 {
                     "LoanTypeID": lt.LoanTypeID,
                     "LoanTypeName": lt.LoanTypeName,

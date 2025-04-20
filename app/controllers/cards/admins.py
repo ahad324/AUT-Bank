@@ -1,5 +1,6 @@
 from typing import Optional
 from sqlalchemy.orm import Session
+from app.core.schemas import PaginatedResponse
 from app.models.card import Card
 from app.schemas.card_schema import CardUpdate, CardResponse
 from app.core.responses import success_response
@@ -36,17 +37,15 @@ def list_all_cards(
         )
     )
 
-    return {
-        "success": True,
-        "message": message,
-        "data": {
-            "cards": [CardResponse.model_validate(card).model_dump() for card in cards]
-        },
-        "page": page,
-        "per_page": per_page,
-        "total_items": total_items,
-        "total_pages": total_pages,
-    }
+    return PaginatedResponse(
+        success=True,
+        message="All cards retrieved successfully",
+        data={"items": [CardResponse.model_validate(c).model_dump() for c in cards]},
+        page=page,
+        per_page=per_page,
+        total_items=total_items,
+        total_pages=total_pages,
+    ).model_dump()
 
 
 def block_card(card_id: int, db: Session):

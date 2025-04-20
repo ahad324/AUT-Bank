@@ -63,10 +63,11 @@ def create_role(role_input: Union[RoleCreate, List[RoleCreate]], db: Session):
 
 def list_roles(db: Session):
     roles = db.query(Role).all()
+
     return success_response(
         message="Roles retrieved",
         data={
-            "roles": [
+            "items": [
                 {
                     "RoleID": r.RoleID,
                     "RoleName": r.RoleName,
@@ -117,7 +118,7 @@ def create_permission(
         return success_response(
             message=f"Created {len(new_perms)} permission(s) successfully",
             data={
-                "created_permissions": [
+                "items": [
                     {"PermissionID": p.PermissionID, "PermissionName": p.PermissionName}
                     for p in new_perms
                 ],
@@ -138,7 +139,7 @@ def list_permissions(db: Session):
     return success_response(
         message="Permissions retrieved",
         data={
-            "permissions": [
+            "items": [
                 {
                     "PermissionID": p.PermissionID,
                     "PermissionName": p.PermissionName,
