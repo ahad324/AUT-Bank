@@ -470,6 +470,20 @@ def get_analytics_summary(db: Session):
     # Average User Balance
     avg_user_balance = db.query(func.avg(User.Balance)).scalar() or 0
 
+    # RBAC Metrics
+    total_roles = db.query(Role).count()
+    total_permissions = db.query(Permission).count()
+
+    # Adjusted query to explicitly select only RoleID and avoid unnecessary columns
+    subquery = (
+        db.query(Role.RoleID)
+        .join(RolePermission, Role.RoleID == RolePermission.RoleID, isouter=True)
+        .group_by(Role.RoleID)
+        .having(func.count(RolePermission.PermissionID) > 0)
+        .subquery()
+    )
+    roles_with_permissions = db.query(func.count()).select_from(subquery).scalar() or 0
+
     return success_response(
         message="Analytics summary retrieved successfully",
         data={
@@ -492,6 +506,11 @@ def get_analytics_summary(db: Session):
                 "repaid_count": repaid_loan_count,
             },
             "average_user_balance": float(avg_user_balance),
+            "rbac": {
+                "total_roles": total_roles,
+                "total_permissions": total_permissions,
+                "roles_with_permissions": roles_with_permissions,
+            },
         },
     )
 
