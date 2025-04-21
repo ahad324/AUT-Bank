@@ -461,7 +461,7 @@ def list_users(
         order,
         db,
     )
-    set_to_cache(cache_key, result, CACHE_TTL_MEDIUM)  # 1 hr TTL for user list
+    set_to_cache(cache_key, result, CACHE_TTL_SHORT)
     return result
 
 
@@ -530,7 +530,7 @@ def list_all_loans(
         sort_by,
         order,
     )
-    set_to_cache(cache_key, result.model_dump(), CACHE_TTL_MEDIUM)  # 1 hr TTL for loans
+    set_to_cache(cache_key, result.model_dump(), CACHE_TTL_SHORT)
     return result
 
 

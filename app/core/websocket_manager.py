@@ -29,8 +29,6 @@ class ConnectionManager:
                 self.active_connections[connection_type][entity_id] = set()
 
             self.active_connections[connection_type][entity_id].add(websocket)
-            print(f"Added {connection_type} {entity_id} to active connections")
-            print(f"Current connections state: {self.active_connections}")
 
             await websocket.send_json(
                 {
@@ -50,8 +48,6 @@ class ConnectionManager:
     async def send_personal_message(
         self, message: dict, entity_id: int, connection_type: str
     ):
-        print(f"Attempting to send message to {connection_type} {entity_id}")
-        print(f"Current connections state: {self.active_connections}")
 
         try:
             if (
@@ -64,9 +60,7 @@ class ConnectionManager:
                 for connection in connections:
                     try:
                         await connection.send_json(message)
-                        print(
-                            f"Successfully sent message to {connection_type} {entity_id}"
-                        )
+
                     except Exception as e:
                         print(f"Error sending to connection: {str(e)}")
                         dead_connections.add(connection)
@@ -81,19 +75,13 @@ class ConnectionManager:
             print(f"Error in send_personal_message: {str(e)}")
 
     async def broadcast(self, message: dict):
-        print(f"Broadcasting message: {message}")  # Debug log
         for connection_type in self.active_connections:
             for entity_id, connections in self.active_connections[
                 connection_type
             ].items():
-                for (
-                    connection
-                ) in (
-                    connections.copy()
-                ):  # Use copy to avoid modification during iteration
+                for connection in connections.copy():
                     try:
                         await connection.send_json(message)
-                        print(f"Broadcast successful to {connection_type} {entity_id}")
                     except Exception as e:
                         print(
                             f"Broadcast error to {connection_type} {entity_id}: {str(e)}"

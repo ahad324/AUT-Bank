@@ -67,7 +67,6 @@ async def check_field_uniqueness(
 def send_verification_email(request: EmailVerificationRequest, db: Session):
     # Verify secret code
     expected_secret = os.getenv("SECRET_CODE_EMAIL")
-    print(expected_secret, request.secret_code)
     if not expected_secret:
         raise CustomHTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
