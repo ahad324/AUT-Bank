@@ -13,4 +13,4 @@ class Withdrawal(Base):
     ReferenceNumber = Column(String(50), nullable=False)
     Status = Column(String(20), nullable=False, default="Pending")
     Description = Column(String(255), nullable=True)
-    Timestamp = Column(DateTime, server_default=func.now())
+    CreatedAt = Column(DateTime, server_default=func.now())

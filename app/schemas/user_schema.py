@@ -142,7 +142,10 @@ class LoginResponseData(BaseModel):
     last_login: Optional[str] = None
     model_config = ConfigDict(
         from_attributes=True,
-        json_encoders={Decimal: lambda v: float(v)},
+        json_encoders={
+            Decimal: lambda v: float(v),
+            datetime: lambda v: v.isoformat() if v else None,
+        },
     )
 
 

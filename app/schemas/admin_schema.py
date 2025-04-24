@@ -56,7 +56,12 @@ class AdminResponseData(BaseModel):
     RoleID: int
     CreatedAt: datetime
     LastLogin: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None,
+        },
+    )
 
 
 class AdminLoginResponseData(BaseModel):
@@ -69,7 +74,12 @@ class AdminLoginResponseData(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None,
+        },
+    )
 
 
 class AdminSortBy(str, Enum):

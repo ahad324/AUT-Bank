@@ -156,7 +156,7 @@ def list_user_transactions(
     transaction_status: Optional[str] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    sort_by: Optional[str] = Query("Timestamp"),
+    sort_by: Optional[str] = Query("CreatedAt"),
     order: Optional[str] = Query("desc"),
 ):
     query_params = {

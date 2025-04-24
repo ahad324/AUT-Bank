@@ -59,7 +59,7 @@ async def create_transfer(
         ReferenceNumber=str(uuid.uuid4()),
         Status="Pending",
         Description=transfer.Description,
-        Timestamp=datetime.now(timezone.utc),
+        CreatedAt=datetime.now(timezone.utc),
     )
 
     try:
@@ -81,7 +81,7 @@ async def create_transfer(
                 "receiver_id": receiver.UserID,
                 "balance": float(sender.Balance),
                 "reference": new_transfer.ReferenceNumber,
-                "timestamp": str(new_transfer.Timestamp),
+                "CreatedAt": str(new_transfer.CreatedAt),
             },
             user_id=sender_id,
             background_tasks=background_tasks,
@@ -96,7 +96,7 @@ async def create_transfer(
                 "sender_id": sender_id,
                 "balance": float(receiver.Balance),
                 "reference": new_transfer.ReferenceNumber,
-                "timestamp": str(new_transfer.Timestamp),
+                "CreatedAt": str(new_transfer.CreatedAt),
             },
             user_id=receiver.UserID,
             background_tasks=background_tasks,

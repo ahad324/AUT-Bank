@@ -16,9 +16,7 @@ from app.core.event_emitter import emit_event
 
 
 async def create_withdrawal(
-    withdrawal: WithdrawalCreate, 
-    db: Session,
-    background_tasks: BackgroundTasks
+    withdrawal: WithdrawalCreate, db: Session, background_tasks: BackgroundTasks
 ):
     card = (
         db.query(Card)
@@ -89,10 +87,10 @@ async def create_withdrawal(
                 "amount": float(amount),
                 "balance": float(user.Balance),
                 "reference": new_withdrawal.ReferenceNumber,
-                "timestamp": str(new_withdrawal.Timestamp)
+                "CreatedAt": str(new_withdrawal.CreatedAt),
             },
             user_id=user.UserID,
-            background_tasks=background_tasks
+            background_tasks=background_tasks,
         )
 
         return success_response(

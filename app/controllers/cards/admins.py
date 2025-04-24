@@ -1,3 +1,4 @@
+from fastapi import status
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.core.schemas import PaginatedResponse
@@ -6,6 +7,47 @@ from app.schemas.card_schema import CardUpdate, CardResponse
 from app.core.responses import success_response
 from app.core.exceptions import CustomHTTPException
 from app.core.auth import pwd_context
+
+
+def get_card_by_id(card_id: int, db: Session):
+    from app.models.card import Card  # Assuming Card model exists
+
+    card = db.query(Card).filter(Card.CardID == card_id).first()
+    if not card:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Card not found"
+        )
+    return success_response(
+        message="Card details retrieved successfully",
+        data=CardResponse.model_validate(card).model_dump(),
+    )
+
+
+def unblock_card(card_id: int, db: Session):
+    from app.models.card import Card  # Assuming Card model exists
+
+    card = db.query(Card).filter(Card.CardID == card_id).first()
+    if not card:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Card not found"
+        )
+    if card.Status != "Blocked":
+        raise CustomHTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, message="Card is not blocked"
+        )
+    card.Status = "Active"
+    try:
+        db.commit()
+        return success_response(
+            message="Card unblocked successfully", data={"CardID": card_id}
+        )
+    except Exception as e:
+        db.rollback()
+        raise CustomHTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message="Failed to unblock card",
+            details={"error": str(e)},
+        )
 
 
 def list_all_cards(
@@ -23,8 +65,10 @@ def list_all_cards(
     # Calculate total pages
     total_pages = (total_items + per_page - 1) // per_page  # Ceiling division
 
-    # Apply pagination
-    cards = query.offset((page - 1) * per_page).limit(per_page).all()
+    # Apply sorting and pagination
+    cards = (
+        query.order_by(Card.CardID).offset((page - 1) * per_page).limit(per_page).all()
+    )
 
     # Prepare response message
     message = (
@@ -39,13 +83,13 @@ def list_all_cards(
 
     return PaginatedResponse(
         success=True,
-        message="All cards retrieved successfully",
+        message=message,  # Use the dynamic message defined above
         data={"items": [CardResponse.model_validate(c).model_dump() for c in cards]},
         page=page,
         per_page=per_page,
         total_items=total_items,
         total_pages=total_pages,
-    ).model_dump()
+    )
 
 
 def block_card(card_id: int, db: Session):

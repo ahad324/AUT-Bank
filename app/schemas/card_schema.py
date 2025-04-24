@@ -31,6 +31,6 @@ class CardResponse(BaseModel):
         from_attributes=True,
         json_encoders={
             datetime: lambda v: v.isoformat(),
-            date: lambda v: v.isoformat(),  # Handle date objects
+            date: lambda v: v.isoformat(),
         },
     )

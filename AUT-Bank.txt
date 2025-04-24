@@ -125,7 +125,7 @@ CREATE TABLE Transfers (
     ReferenceNumber NVARCHAR(50) NOT NULL,
     Status NVARCHAR(20) CHECK (Status IN ('Pending', 'Completed', 'Failed')) DEFAULT 'Pending',
     Description NVARCHAR(255) NULL,
-    Timestamp DATETIME DEFAULT GETDATE()
+    CreatedAt DATETIME DEFAULT GETDATE()
 );
 GO
 
@@ -138,7 +138,7 @@ CREATE TABLE Deposits (
     ReferenceNumber NVARCHAR(50) NOT NULL,
     Status NVARCHAR(20) CHECK (Status IN ('Pending', 'Completed', 'Failed')) DEFAULT 'Pending',
     Description NVARCHAR(255) NULL,
-    Timestamp DATETIME DEFAULT GETDATE()
+    CreatedAt DATETIME DEFAULT GETDATE()
 );
 GO
 
@@ -151,7 +151,7 @@ CREATE TABLE Withdrawals (
     ReferenceNumber NVARCHAR(50) NOT NULL,
     Status NVARCHAR(20) CHECK (Status IN ('Pending', 'Completed', 'Failed')) DEFAULT 'Pending',
     Description NVARCHAR(255) NULL,
-    Timestamp DATETIME DEFAULT GETDATE()
+    CreatedAt DATETIME DEFAULT GETDATE()
 );
 GO
 

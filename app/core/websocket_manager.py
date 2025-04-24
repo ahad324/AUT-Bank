@@ -106,8 +106,6 @@ class ConnectionManager:
                 and entity_id in self.active_connections[connection_type]
             ):
                 self.active_connections[connection_type][entity_id].remove(websocket)
-                print(f"Removed {connection_type} {entity_id} from active connections")
-                print(f"Current connections state: {self.active_connections}")
 
                 # Clean up empty sets
                 if not self.active_connections[connection_type][entity_id]:

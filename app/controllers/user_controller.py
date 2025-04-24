@@ -268,9 +268,9 @@ def get_user_profile(user_id: int, db: Session):
             AccountType=user.AccountType,
             Balance=user.Balance,
             IsActive=user.IsActive,
-            DateOfBirth=user.DateOfBirth.isoformat() if user.DateOfBirth else None,
-            CreatedAt=user.CreatedAt.isoformat() if user.CreatedAt else None,
-            LastLogin=user.LastLogin.isoformat() if user.LastLogin else None,
+            DateOfBirth=user.DateOfBirth,
+            CreatedAt=user.CreatedAt,
+            LastLogin=user.LastLogin,
             access_token="",
             refresh_token="",
             token_type="bearer",
@@ -408,84 +408,65 @@ def export_user_transactions(
     transaction_status: Optional[str] = None,
     transaction_type: Optional[str] = None,
 ):
-    # Alias the Transfers table for sent and received transactions
-    TransfersSent = aliased(Transfer, name="TransfersSent")
-    TransfersReceived = aliased(Transfer, name="TransfersReceived")
+    # Alias for User and Receiver
+    UserAlias = aliased(User)
+    Receiver = aliased(User)
 
-    # Start query from User table to avoid ambiguity
+    # Base query
     query = (
-        db.query(User)  # Start with User as the base table
-        .filter(User.UserID == user_id)
-        .outerjoin(Deposit, Deposit.UserID == User.UserID)
-        .outerjoin(TransfersSent, TransfersSent.SenderID == User.UserID)
-        .outerjoin(TransfersReceived, TransfersReceived.ReceiverID == User.UserID)
-        .outerjoin(Withdrawal, Withdrawal.UserID == User.UserID)
-        .with_entities(
+        db.query(
             func.coalesce(
-                Deposit.DepositID,
-                TransfersSent.TransferID,
-                TransfersReceived.TransferID,
-                Withdrawal.WithdrawalID,
+                Deposit.DepositID, Transfer.TransferID, Withdrawal.WithdrawalID
             ).label("TransactionID"),
+            UserAlias.Username.label("Username"),
+            func.coalesce(Deposit.Amount, Transfer.Amount, Withdrawal.Amount).label(
+                "Amount"
+            ),
+            func.coalesce(Deposit.Status, Transfer.Status, Withdrawal.Status).label(
+                "Status"
+            ),
             func.coalesce(
-                Deposit.Amount,
-                TransfersSent.Amount,
-                TransfersReceived.Amount,
-                Withdrawal.Amount,
-            ).label("Amount"),
-            func.coalesce(
-                Deposit.Status,
-                TransfersSent.Status,
-                TransfersReceived.Status,
-                Withdrawal.Status,
-            ).label("Status"),
-            func.coalesce(
-                Deposit.Timestamp,
-                TransfersSent.Timestamp,
-                TransfersReceived.Timestamp,
-                Withdrawal.Timestamp,
-            ).label("Timestamp"),
+                Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt
+            ).label("CreatedAt"),
             case(
                 (Deposit.DepositID.isnot(None), "Deposit"),
-                (TransfersSent.TransferID.isnot(None), "Transfer (Sent)"),
-                (TransfersReceived.TransferID.isnot(None), "Transfer (Received)"),
+                (Transfer.TransferID.isnot(None), "Transfer"),
                 (Withdrawal.WithdrawalID.isnot(None), "Withdrawal"),
             ).label("TransactionType"),
-            func.coalesce(TransfersSent.ReceiverID, TransfersReceived.ReceiverID).label(
-                "ReceiverID"
-            ),
+            Transfer.ReceiverID.label("ReceiverID"),
         )
+        .select_from(UserAlias)
+        .outerjoin(Deposit, Deposit.UserID == UserAlias.UserID)
+        .outerjoin(
+            Transfer,
+            (Transfer.SenderID == UserAlias.UserID)
+            | (Transfer.ReceiverID == UserAlias.UserID),
+        )
+        .outerjoin(Withdrawal, Withdrawal.UserID == UserAlias.UserID)
+        .outerjoin(Receiver, Receiver.UserID == Transfer.ReceiverID)
         .filter(
             or_(
-                Deposit.DepositID.isnot(None),
-                TransfersSent.TransferID.isnot(None),
-                TransfersReceived.TransferID.isnot(None),
-                Withdrawal.WithdrawalID.isnot(None),
+                Deposit.UserID == user_id,
+                Transfer.SenderID == user_id,
+                Transfer.ReceiverID == user_id,
+                Withdrawal.UserID == user_id,
             )
         )
     )
 
     # Apply filters
-    if start_date:
-        query = query.filter(
-            func.coalesce(
-                Deposit.Timestamp,
-                TransfersSent.Timestamp,
-                TransfersReceived.Timestamp,
-                Withdrawal.Timestamp,
+    if transaction_type:
+        if transaction_type not in ["Deposit", "Transfer", "Withdrawal"]:
+            raise CustomHTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Invalid transaction type",
             )
-            >= start_date
-        )
-    if end_date:
-        query = query.filter(
-            func.coalesce(
-                Deposit.Timestamp,
-                TransfersSent.Timestamp,
-                TransfersReceived.Timestamp,
-                Withdrawal.Timestamp,
-            )
-            <= end_date
-        )
+        if transaction_type == "Deposit":
+            query = query.filter(Deposit.DepositID.isnot(None))
+        elif transaction_type == "Transfer":
+            query = query.filter(Transfer.TransferID.isnot(None))
+        elif transaction_type == "Withdrawal":
+            query = query.filter(Withdrawal.WithdrawalID.isnot(None))
     if transaction_status:
         if transaction_status not in ["Pending", "Completed", "Failed"]:
             raise CustomHTTPException(
@@ -493,33 +474,19 @@ def export_user_transactions(
                 message="Invalid transaction status value",
             )
         query = query.filter(
-            func.coalesce(
-                Deposit.Status,
-                TransfersSent.Status,
-                TransfersReceived.Status,
-                Withdrawal.Status,
-            )
+            func.coalesce(Deposit.Status, Transfer.Status, Withdrawal.Status)
             == transaction_status
         )
-    if transaction_type:
-        if transaction_type not in [
-            "Deposit",
-            "Transfer (Sent)",
-            "Transfer (Received)",
-            "Withdrawal",
-        ]:
-            raise CustomHTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                message="Invalid transaction type value",
-            )
-        if transaction_type == "Deposit":
-            query = query.filter(Deposit.DepositID.isnot(None))
-        elif transaction_type == "Transfer (Sent)":
-            query = query.filter(TransfersSent.TransferID.isnot(None))
-        elif transaction_type == "Transfer (Received)":
-            query = query.filter(TransfersReceived.TransferID.isnot(None))
-        elif transaction_type == "Withdrawal":
-            query = query.filter(Withdrawal.WithdrawalID.isnot(None))
+    if start_date:
+        query = query.filter(
+            func.coalesce(Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt)
+            >= start_date
+        )
+    if end_date:
+        query = query.filter(
+            func.coalesce(Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt)
+            <= end_date
+        )
 
     # Execute query
     transactions = query.all()
@@ -537,9 +504,10 @@ def export_user_transactions(
     # Write headers
     headers = [
         "TransactionID",
+        "Username",
         "Amount",
         "Status",
-        "Timestamp",
+        "CreatedAt",
         "TransactionType",
         "ReceiverUsername",
     ]
@@ -558,9 +526,10 @@ def export_user_transactions(
         writer.writerow(
             [
                 t.TransactionID,
+                t.Username,
                 f"{float(t.Amount):.2f}",
                 t.Status,
-                t.Timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                t.CreatedAt.strftime("%Y-%m-%d %H:%M:%S") if t.CreatedAt else "",
                 t.TransactionType,
                 receiver_username,
             ]
@@ -568,7 +537,9 @@ def export_user_transactions(
 
     # Prepare streaming response
     output.seek(0)
-    filename = f"my_transactions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = (
+        f"user_transactions_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    )
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",

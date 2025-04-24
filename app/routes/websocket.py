@@ -31,7 +31,6 @@ async def user_websocket(
             return
 
         user_id = int(payload.get("sub"))
-        print(f"User {user_id} connecting to WebSocket")
 
         # Connect to WebSocket
         entity_id = await manager.connect(websocket, token, "user")
@@ -39,12 +38,9 @@ async def user_websocket(
             await websocket.close(code=4002)
             return
 
-        print(f"User {user_id} connected successfully")
-
         try:
             while True:
                 data = await websocket.receive_text()
-                print(f"Received message from user {user_id}: {data}")
         except WebSocketDisconnect:
             print(f"User {user_id} disconnected")
             if user_id:
@@ -74,7 +70,6 @@ async def admin_websocket(
             return
 
         admin_id = int(payload.get("sub"))
-        print(f"Admin {admin_id} connecting to WebSocket")
 
         # Connect to WebSocket
         entity_id = await manager.connect(websocket, token, "admin")
@@ -82,8 +77,6 @@ async def admin_websocket(
             print(f"Failed to connect admin {admin_id}")
             await websocket.close(code=4002)
             return
-
-        print(f"Admin {admin_id} connected successfully")
 
         try:
             while True:

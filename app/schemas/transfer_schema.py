@@ -34,5 +34,10 @@ class TransferResponse(BaseModel):
     ReferenceNumber: str
     Status: str
     Description: Optional[str]
-    Timestamp: datetime
-    model_config = ConfigDict(from_attributes=True)
+    CreatedAt: datetime
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat() if v else None,
+        },
+    )

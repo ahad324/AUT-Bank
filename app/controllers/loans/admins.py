@@ -14,6 +14,31 @@ from fastapi import BackgroundTasks
 from app.core.event_emitter import emit_event
 
 
+def get_loan_by_id(loan_id: int, db: Session):
+    loan = db.query(Loan).filter(Loan.LoanID == loan_id).first()
+    if not loan:
+        raise CustomHTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, message="Loan not found"
+        )
+    loan_type = (
+        db.query(LoanType).filter(LoanType.LoanTypeID == loan.LoanTypeID).first()
+    )
+    return success_response(
+        message="Loan details retrieved successfully",
+        data=LoanResponse(
+            LoanID=loan.LoanID,
+            LoanTypeName=loan_type.LoanTypeName,
+            LoanAmount=loan.LoanAmount,
+            InterestRate=loan.InterestRate,
+            LoanDurationMonths=loan.LoanDurationMonths,
+            MonthlyInstallment=loan.MonthlyInstallment,
+            DueDate=loan.DueDate,
+            LoanStatus=loan.LoanStatus,
+            CreatedAt=loan.CreatedAt,
+        ).model_dump(),
+    )
+
+
 async def approve_loan(
     loan_id: int,
     current_admin: Admin,

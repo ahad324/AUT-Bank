@@ -19,7 +19,6 @@ import json
 # Controllers
 from app.controllers.admin_controller import (
     delete_user,
-    export_transactions,
     get_all_admins,
     register_admin,
     login_admin,
@@ -33,17 +32,27 @@ from app.controllers.admin_controller import (
     get_admin_by_id,
     delete_admin,
     get_user_by_id,
-    get_user_deposits,
-    get_loan_by_id,
-    get_card_by_id,
-    unblock_card,
-    get_transaction_by_id,
     get_all_users,
 )
-from app.controllers.deposits.admins import create_deposit
-from app.controllers.transactions.admins import get_all_transactions
-from app.controllers.loans.admins import approve_loan, reject_loan, get_all_loans
-from app.controllers.cards.admins import list_all_cards, block_card, update_card_admin
+from app.controllers.deposits.admins import get_user_deposits, create_deposit
+from app.controllers.transactions.admins import (
+    get_transaction_by_id,
+    get_all_transactions,
+    export_transactions,
+)
+from app.controllers.loans.admins import (
+    get_loan_by_id,
+    approve_loan,
+    reject_loan,
+    get_all_loans,
+)
+from app.controllers.cards.admins import (
+    get_card_by_id,
+    unblock_card,
+    list_all_cards,
+    block_card,
+    update_card_admin,
+)
 
 # Schemas
 from app.core.exceptions import CustomHTTPException
@@ -55,6 +64,7 @@ from app.schemas.admin_schema import (
     AdminSortBy,
     AdminUpdate,
 )
+from app.schemas.transactions_schema import TransactionResponse
 from app.schemas.card_schema import CardUpdate
 from app.schemas.deposit_schema import DepositCreate
 from app.schemas.user_schema import Order, SortBy, UserUpdate
@@ -224,7 +234,7 @@ def get_user_deposits_route(
     deposit_status: Optional[str] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    sort_by: Optional[str] = Query("Timestamp"),
+    sort_by: Optional[str] = Query("CreatedAt"),
     order: Optional[str] = Query("desc"),
     current_admin: Admin = Depends(check_permission("deposit:view_all")),
     db: Session = Depends(get_db),
@@ -321,12 +331,12 @@ def unblock_card_route(
     return result
 
 
-@router.get("/transactions/{transaction_id}", response_model=BaseResponse)
+@router.get("/transactions/details/{transaction_id}", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_USER_DEFAULT", "100/hour"))
 def get_transaction_by_id_route(
     request: Request,
     transaction_id: int,
-    transaction_type: str = Query(...),
+    transaction_type: Optional[str] = Query(None),
     current_admin: Admin = Depends(check_permission("transaction:view_all")),
     db: Session = Depends(get_db),
 ):
@@ -583,16 +593,16 @@ def delete_user_route(
 def list_all_transactions(
     request: Request,
     current_admin: Admin = Depends(check_permission("transaction:view_all")),
-    db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
+    user_id: Optional[int] = Query(None),
     transaction_type: Optional[str] = Query(None),
     transaction_status: Optional[str] = Query(None),
-    user_id: Optional[int] = Query(None),
-    start_date: Optional[date] = Query(None),
-    end_date: Optional[date] = Query(None),
-    sort_by: Optional[str] = Query("Timestamp"),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    sort_by: Optional[str] = Query("CreatedAt"),
     order: Optional[str] = Query("desc"),
+    db: Session = Depends(get_db),
 ):
     params = {
         "page": page,
