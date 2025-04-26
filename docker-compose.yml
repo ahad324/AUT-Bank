@@ -1,0 +1,24 @@
+services:
+  app:
+    image: ogdev112/aut-bank:latest
+    ports:
+      - "8000:8000"  # FastAPI app
+    environment:
+      - DATABASE_URL=${DATABASE_URL}  # e.g., mssql+pyodbc://user:password@yourdb.somee.com:1433/dbname?driver=ODBC+Driver+17+for+SQL+Server
+      - REDIS_URL=${REDIS_URL}  # e.g., redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+  redis:
+    image: redis/redis-stack:latest
+    ports:
+      - "6379:6379"  # Redis server (optional for debugging)
+      - "8001:8001"  # RedisInsight UI
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
