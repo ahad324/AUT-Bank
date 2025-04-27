@@ -546,7 +546,7 @@ def list_all_loans(
 
 @router.put("/loans/{loan_id}/approve", response_model=BaseResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN_CRITICAL", "10/minute"))
-async def approve_loan(
+async def approve_loan_route(
     request: Request,
     loan_id: int,
     background_tasks: BackgroundTasks,
