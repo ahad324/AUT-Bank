@@ -25,7 +25,7 @@ class LoanResponse(BaseModel):
     MonthlyInstallment: Decimal
     DueDate: date
     LoanStatus: str
-    CreatedAt: Optional[date]
+    CreatedAt: Optional[datetime]
     model_config = ConfigDict(
         from_attributes=True,
         json_encoders={
