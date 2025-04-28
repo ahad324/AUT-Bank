@@ -2,7 +2,7 @@ import csv
 from io import StringIO
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, asc, desc, union_all, literal
+from sqlalchemy import or_, asc, desc, select, union, union_all, literal
 from app.core.responses import success_response
 from app.models.transfer import Transfer
 from app.models.deposit import Deposit
@@ -302,99 +302,94 @@ def get_all_transactions(
                 message="Invalid user_id: must be an integer",
             )
 
-    # Alias for Receiver User table
+    # Alias for Sender and Receiver User tables
+    Sender = aliased(User)
     Receiver = aliased(User)
 
-    # Unified query for all transaction types
-    query = (
-        db.query(
-            func.coalesce(
-                Deposit.DepositID, Transfer.TransferID, Withdrawal.WithdrawalID
-            ).label("TransactionID"),
-            User.UserID.label("UserID"),
-            User.Username.label("Username"),
-            func.coalesce(Deposit.Amount, Transfer.Amount, Withdrawal.Amount).label(
-                "Amount"
-            ),
-            case(
-                (Deposit.DepositID.isnot(None), "Deposit"),
-                (Transfer.TransferID.isnot(None), "Transfer"),
-                (Withdrawal.WithdrawalID.isnot(None), "Withdrawal"),
-            ).label("TransactionType"),
-            func.coalesce(Deposit.Status, Transfer.Status, Withdrawal.Status).label(
-                "Status"
-            ),
-            func.coalesce(
-                Deposit.Description, Transfer.Description, Withdrawal.Description
-            ).label("Description"),
-            func.coalesce(
-                Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt
-            ).label("CreatedAt"),
-            func.coalesce(
-                Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt
-            ).label("UpdatedAt"),
-            Transfer.ReceiverID.label("ReceiverID"),
-            Receiver.Username.label("ReceiverUsername"),
-        )
-        .select_from(User)
-        .outerjoin(Deposit, Deposit.UserID == User.UserID)
-        .outerjoin(Transfer, Transfer.SenderID == User.UserID)
-        .outerjoin(Withdrawal, Withdrawal.UserID == User.UserID)
-        .outerjoin(Receiver, Receiver.UserID == Transfer.ReceiverID)
-        .filter(
-            or_(
-                Deposit.DepositID.isnot(None),
-                Transfer.TransferID.isnot(None),
-                Withdrawal.WithdrawalID.isnot(None),
-            )
-        )
+    # Subquery for Deposits
+    deposit_query = select(
+        Deposit.DepositID.label("TransactionID"),
+        Deposit.UserID.label("UserID"),
+        Sender.Username.label("Username"),
+        Deposit.Amount.label("Amount"),
+        literal("Deposit").label("TransactionType"),
+        Deposit.Status.label("Status"),
+        Deposit.Description.label("Description"),
+        Deposit.CreatedAt.label("CreatedAt"),
+        Deposit.CreatedAt.label("UpdatedAt"),
+        literal(None).label("ReceiverID"),
+        literal(None).label("ReceiverUsername"),
+    ).select_from(Deposit).join(Sender, Sender.UserID == Deposit.UserID)
+    if user_id:
+        deposit_query = deposit_query.where(Deposit.UserID == user_id)
+
+    # Subquery for Transfers
+    transfer_query = select(
+        Transfer.TransferID.label("TransactionID"),
+        Transfer.SenderID.label("UserID"),
+        Sender.Username.label("Username"),
+        Transfer.Amount.label("Amount"),
+        literal("Transfer").label("TransactionType"),
+        Transfer.Status.label("Status"),
+        Transfer.Description.label("Description"),
+        Transfer.CreatedAt.label("CreatedAt"),
+        Transfer.CreatedAt.label("UpdatedAt"),
+        Transfer.ReceiverID.label("ReceiverID"),
+        Receiver.Username.label("ReceiverUsername"),
+    ).select_from(Transfer).join(Sender, Sender.UserID == Transfer.SenderID).join(
+        Receiver, Receiver.UserID == Transfer.ReceiverID
     )
+    if user_id:
+        transfer_query = transfer_query.where(
+            or_(Transfer.SenderID == user_id, Transfer.ReceiverID == user_id)
+        )
+
+    # Subquery for Withdrawals
+    withdrawal_query = select(
+        Withdrawal.WithdrawalID.label("TransactionID"),
+        Withdrawal.UserID.label("UserID"),
+        Sender.Username.label("Username"),
+        Withdrawal.Amount.label("Amount"),
+        literal("Withdrawal").label("TransactionType"),
+        Withdrawal.Status.label("Status"),
+        Withdrawal.Description.label("Description"),
+        Withdrawal.CreatedAt.label("CreatedAt"),
+        Withdrawal.CreatedAt.label("UpdatedAt"),
+        literal(None).label("ReceiverID"),
+        literal(None).label("ReceiverUsername"),
+    ).select_from(Withdrawal).join(Sender, Sender.UserID == Withdrawal.UserID)
+    if user_id:
+        withdrawal_query = withdrawal_query.where(Withdrawal.UserID == user_id)
+
+    # Combine with union
+    union_query = union(deposit_query, transfer_query, withdrawal_query).subquery()
+    query = db.query(union_query)
 
     # Apply filters
-    if user_id:
-        query = query.filter(User.UserID == user_id)
     if transaction_type in ["Deposit", "Transfer", "Withdrawal"]:
-        if transaction_type == "Deposit":
-            query = query.filter(Deposit.DepositID.isnot(None))
-        elif transaction_type == "Transfer":
-            query = query.filter(Transfer.TransferID.isnot(None))
-        elif transaction_type == "Withdrawal":
-            query = query.filter(Withdrawal.WithdrawalID.isnot(None))
+        query = query.filter(union_query.c.TransactionType == transaction_type)
     if transaction_status:
-        query = query.filter(
-            func.coalesce(Deposit.Status, Transfer.Status, Withdrawal.Status)
-            == transaction_status
-        )
+        query = query.filter(union_query.c.Status == transaction_status)
     if start_date:
-        query = query.filter(
-            func.coalesce(Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt)
-            >= start_date
-        )
+        query = query.filter(union_query.c.CreatedAt >= start_date)
     if end_date:
-        query = query.filter(
-            func.coalesce(Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt)
-            <= end_date
-        )
+        query = query.filter(union_query.c.CreatedAt <= end_date)
 
-    # Sorting with a fallback to ensure ORDER BY is always present
+    # Sorting
     sort_field_map = {
-        "TransactionID": func.coalesce(
-            Deposit.DepositID, Transfer.TransferID, Withdrawal.WithdrawalID
-        ),
-        "Amount": func.coalesce(Deposit.Amount, Transfer.Amount, Withdrawal.Amount),
-        "CreatedAt": func.coalesce(
-            Deposit.CreatedAt, Transfer.CreatedAt, Withdrawal.CreatedAt
-        ),
-        "Status": func.coalesce(Deposit.Status, Transfer.Status, Withdrawal.Status),
+        "TransactionID": union_query.c.TransactionID,
+        "Amount": union_query.c.Amount,
+        "CreatedAt": union_query.c.CreatedAt,
+        "Status": union_query.c.Status,
     }
-    sort_field = sort_field_map.get(sort_by, sort_field_map["CreatedAt"])
+    sort_field = sort_field_map.get(sort_by, union_query.c.CreatedAt)
     order_func = desc if order.lower() == "desc" else asc
     query = query.order_by(order_func(sort_field))
 
     # Pagination
     total_items = query.count()
     transactions = query.offset((page - 1) * per_page).limit(per_page).all()
-    
+
     return PaginatedResponse(
         success=True,
         message="Transactions retrieved successfully",
