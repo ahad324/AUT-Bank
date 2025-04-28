@@ -292,6 +292,7 @@ def get_user_loans(
     loan_list = [
         LoanResponse(
             LoanID=loan.LoanID,
+            UserID=loan.UserID,
             LoanTypeName=loan_type_name,
             LoanAmount=loan.LoanAmount,
             InterestRate=loan.InterestRate,
