@@ -83,7 +83,7 @@ def list_all_cards(
 
     return PaginatedResponse(
         success=True,
-        message=message,  # Use the dynamic message defined above
+        message=message,
         data={"items": [CardResponse.model_validate(c).model_dump() for c in cards]},
         page=page,
         per_page=per_page,

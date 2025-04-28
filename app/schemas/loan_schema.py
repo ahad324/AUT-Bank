@@ -18,6 +18,7 @@ class LoanPaymentCreate(BaseModel):
 
 class LoanResponse(BaseModel):
     LoanID: int
+    UserID: int
     LoanTypeName: str
     LoanAmount: Decimal
     InterestRate: Decimal

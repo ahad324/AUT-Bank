@@ -100,7 +100,7 @@ CREATE TABLE Loans (
         (LoanAmount * (InterestRate/100/12) * POWER(1 + (InterestRate/100/12), LoanDurationMonths)) / 
         (POWER(1 + (InterestRate/100/12), LoanDurationMonths) - 1) PERSISTED,
     DueDate DATE NOT NULL,
-    LoanStatus NVARCHAR(20) CHECK (LoanStatus IN ('Pending', 'Active', 'Repaid')) DEFAULT 'Pending', -- Simplified
+    LoanStatus NVARCHAR(20) CHECK (LoanStatus IN ('Pending', 'Approved', 'Rejected', 'Repaid')) DEFAULT 'Pending',
     CreatedAt DATETIME DEFAULT GETDATE()
 );
 GO
@@ -155,39 +155,6 @@ CREATE TABLE Withdrawals (
 );
 GO
 
--- Centralized Stored Procedure for Balance Updates
-CREATE PROCEDURE UpdateUserBalance
-    @UserID INT,
-    @Amount DECIMAL(19,4),
-    @TransactionType NVARCHAR(20),
-    @EntityID INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    BEGIN TRY
-        BEGIN TRANSACTION;
-
-        DECLARE @NewBalance DECIMAL(19,4);
-        SET @NewBalance = (SELECT Balance FROM Users WHERE UserID = @UserID) + 
-                         (CASE WHEN @TransactionType IN ('Deposit', 'LoanApproved') THEN @Amount 
-                               WHEN @TransactionType IN ('Withdrawal', 'TransferOut') THEN -@Amount 
-                               ELSE 0 END);
-
-        IF @NewBalance < 0
-            THROW 50001, 'Insufficient balance', 1;
-
-        UPDATE Users 
-        SET Balance = @NewBalance 
-        WHERE UserID = @UserID;
-
-        COMMIT TRANSACTION;
-    END TRY
-    BEGIN CATCH
-        ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
-END;
-GO
 
 -- Optimized Indexes
 CREATE INDEX idx_users_email ON Users(Email);
