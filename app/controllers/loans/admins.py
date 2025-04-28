@@ -1,3 +1,4 @@
+from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, desc, text
 from app.models.loan import Loan, LoanType
@@ -27,6 +28,7 @@ def get_loan_by_id(loan_id: int, db: Session):
         message="Loan details retrieved successfully",
         data=LoanResponse(
             LoanID=loan.LoanID,
+            UserID=loan.UserID,
             LoanTypeName=loan_type.LoanTypeName,
             LoanAmount=loan.LoanAmount,
             InterestRate=loan.InterestRate,
@@ -50,24 +52,23 @@ async def approve_loan(
         raise CustomHTTPException(
             status_code=status.HTTP_404_NOT_FOUND, message="Loan not found"
         )
-    if loan.LoanStatus != "Pending":
+    if loan.LoanStatus not in ["Pending", "Rejected"]:
         raise CustomHTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            message="Only pending loans can be approved",
+            message="Only pending and rejected loans can be approved",
         )
 
     try:
-        loan.LoanStatus = "Active"
-        db.execute(
-            text(
-                "EXEC UpdateUserBalance @UserID=:user_id, @Amount=:amount, @TransactionType='LoanApproved', @EntityID=:loan_id"
-            ),
-            {
-                "user_id": loan.UserID,
-                "amount": float(loan.LoanAmount),
-                "loan_id": loan_id,
-            },
-        )
+        loan.LoanStatus = "Approved"
+        user = db.query(User).filter(User.UserID == loan.UserID).first()
+        if not user:
+            raise CustomHTTPException(status_code=404, message="User not found")
+        loan_amount = Decimal(str(loan.LoanAmount))
+        user_balance = Decimal(str(user.Balance or 0))
+
+        # Update user balance
+        user.Balance = float(user_balance + loan_amount)
+
         db.commit()
 
         # Emit notification to the loan applicant (user)
@@ -75,7 +76,7 @@ async def approve_loan(
             "loan_status_updated",
             {
                 "loan_id": loan_id,
-                "status": "Active",
+                "status": "Approved",
                 "admin_id": current_admin.AdminID,
             },
             user_id=loan.UserID,
@@ -87,7 +88,7 @@ async def approve_loan(
             "loan_processed",
             {
                 "loan_id": loan_id,
-                "status": "Active",
+                "status": "Approved",
                 "admin_id": current_admin.AdminID,
                 "user_id": loan.UserID,
             },
@@ -97,7 +98,7 @@ async def approve_loan(
 
         return success_response(
             message="Loan approved successfully",
-            data={"loan_id": loan_id, "status": "Active"},
+            data={"LoanID": loan_id, "LoanStatus": "Approved"},
         )
     except Exception as e:
         db.rollback()
@@ -126,13 +127,14 @@ async def reject_loan(
         )
 
     try:
+        loan.LoanStatus = "Rejected"
         db.commit()
 
         await emit_event(
             "loan_status_updated",
             {
                 "loan_id": loan_id,
-                "status": "Pending",
+                "status": "Rejected",
                 "rejected": True,
                 "admin_id": current_admin.AdminID,
             },
@@ -143,7 +145,7 @@ async def reject_loan(
             "loan_processed",
             {
                 "loan_id": loan_id,
-                "status": "Pending",
+                "status": "Rejected",
                 "rejected": True,
                 "admin_id": current_admin.AdminID,
                 "user_id": loan.UserID,
@@ -154,7 +156,7 @@ async def reject_loan(
 
         return success_response(
             message="Loan rejected successfully",
-            data={"loan_id": loan_id, "status": "Rejected"},
+            data={"LoanID": loan_id, "LoanStatus": "Rejected"},
         )
     except Exception as e:
         db.rollback()
@@ -234,6 +236,7 @@ def get_all_loans(
     loan_list = [
         LoanResponse(
             LoanID=loan.LoanID,
+            UserID=loan.UserID,
             LoanTypeName=loan_type_name,
             LoanAmount=loan.LoanAmount,
             InterestRate=loan.InterestRate,
@@ -241,7 +244,7 @@ def get_all_loans(
             MonthlyInstallment=loan.MonthlyInstallment,
             DueDate=loan.DueDate,
             LoanStatus=loan.LoanStatus,
-            CreatedAt=loan.CreatedAt.date() if loan.CreatedAt else None,
+            CreatedAt=loan.CreatedAt,
         )
         for loan, loan_type_name in loans
     ]

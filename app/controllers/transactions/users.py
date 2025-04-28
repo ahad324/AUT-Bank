@@ -141,24 +141,6 @@ def get_user_transactions(
     total_items = query.count()
     transactions = query.offset((page - 1) * per_page).limit(per_page).all()
 
-    # Format response using TransactionResponse
-    transaction_list = [
-        TransactionResponse(
-            TransactionID=t.TransactionID,
-            UserID=t.UserID,
-            Username=t.Username,
-            Amount=float(t.Amount),
-            TransactionType=t.TransactionType,
-            Status=t.Status,
-            Description=t.Description,
-            CreatedAt=t.CreatedAt,
-            UpdatedAt=t.UpdatedAt,
-            ReceiverID=t.ReceiverID,
-            ReceiverUsername=t.ReceiverUsername,
-        ).model_dump()
-        for t in transactions
-    ]
-
     return PaginatedResponse(
         success=True,
         message="Transactions retrieved successfully",

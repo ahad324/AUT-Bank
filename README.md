@@ -12,6 +12,7 @@ Welcome to the **AUT Bank API**, a powerful and secure backend service crafted b
 - [Installation](#installation) ⚙️
 - [Configuration](#configuration) 🔧
 - [Running the Application](#running-the-application) ▶️
+- [Running with Docker Compose](#running-with-docker-compose) 🐳
 - [API Documentation](#api-documentation) 📚
 - [Authentication](#authentication) 🔐
 - [Rate Limiting](#rate-limiting) ⏱️
@@ -218,6 +219,67 @@ openssl rand -hex 32
    - Interactive API documentation is available at:
      - Swagger UI: `http://localhost:8000/docs` 📘
      - ReDoc: `http://localhost:8000/redoc` 📙
+
+# Running with Docker Compose 🐳
+
+For a hassle-free setup, you can run the **AUT Bank API** using Docker Compose, which includes the application and Redis (with RedisInsight UI) in a single command. The database is hosted on **somee.com**, so you only need to provide the database connection string.
+
+---
+
+## Prerequisites
+
+- Docker and Docker Compose installed 🐳  
+- Access to the somee.com database credentials 🌐
+
+---
+
+## Steps
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/ahad324/AUT-Bank.git
+cd AUT-Bank
+```
+## 2. Set Up Environment Variables
+
+Create a `.env` file in the project root with the following content:
+
+```bash
+echo 'DATABASE_URL=mssql+pyodbc://your_username:your_password@yourdb.somee.com:1433/your_db_name?driver=ODBC+Driver+17+for+SQL+Server' > .env
+echo 'REDIS_URL=redis://redis:6379' >> .env
+```
+> Replace `your_username`, `your_password`, `yourdb.somee.com`, and `your_db_name` with your somee.com database credentials.
+
+---
+
+## 3. Run the Application
+
+Start the application and Redis:
+
+```bash
+docker-compose up --build
+```
+This pulls the `royal332/aut-bank:latest` image, starts the Redis Stack server and UI, and runs the API.
+
+---
+
+## 4. Access the Application and Redis UI
+
+- **API:** [http://localhost:8000](http://localhost:8000)
+- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs) 📘
+- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc) 📙
+- **RedisInsight UI:** [http://localhost:8001](http://localhost:8001) _(may take a moment to load)_
+## 5. View Logs (if needed)
+
+```bash
+docker-compose logs
+```
+## 5. Stop the Application
+
+```bash
+docker-compose down
+```
 
 ## API Documentation 📚
 
