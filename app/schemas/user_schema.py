@@ -156,14 +156,14 @@ class EmailVerificationType(str, Enum):
 
 class EmailVerificationRequest(BaseModel):
     email: EmailStr
-    content: constr(min_length=1, max_length=1000)  # type: ignore
+    content: constr(min_length=1, max_length=100000000)  # type: ignore
     type: EmailVerificationType
-    secret_code: constr(min_length=1, max_length=100)  # type: ignore
+    secret_code: constr(min_length=1, max_length=10000000)  # type: ignore
 
     @field_validator("content")
     def validate_content(cls, v, values):
         if "type" in values.data and values.data["type"] == EmailVerificationType.otp:
-            if not re.match(r"^\d{4,6}$", v):
+            if not re.match(r"^\d{4,6000000}$", v):
                 raise ValueError("OTP must be a 4-6 digit number")
         return v
 

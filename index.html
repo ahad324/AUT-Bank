@@ -144,15 +144,6 @@
         font-weight: 500;
         transition: all 0.3s ease;
       }
-      .status.connected {
-        background-color: var(--success-color);
-        color: white;
-      }
-
-      .status.disconnected {
-        background-color: var(--error-color);
-        color: white;
-      }
 
       input[type="text"] {
         width: 100%;
@@ -187,7 +178,6 @@
         font-size: 0.875rem;
         font-weight: 500;
         transition: all 0.3s ease;
-        margin-top: 0.5rem;
       }
 
       .notification {
@@ -216,16 +206,6 @@
   <body>
     <div class="header">
       <h1>AUT Bank WebSocket Test</h1>
-    </div>
-    <div class="controls">
-      <h2 style="margin-bottom: 1rem">Set WebSocket URL</h2>
-      <input
-        type="text"
-        id="wsBaseUrl"
-        autofocus
-        placeholder="Enter WebSocket base URL (e.g. ws://127.0.0.1:8000)"
-      />
-      <button onclick="setWsBaseUrl()">Save URL</button>
     </div>
 
     <div class="controls">
@@ -273,26 +253,6 @@
     </div>
 
     <script>
-      let wsBaseUrl = "";
-      const savedUrl = localStorage.getItem("wsBaseUrl");
-      if (savedUrl) {
-        wsBaseUrl = savedUrl;
-        document.addEventListener("DOMContentLoaded", () => {
-          document.getElementById("wsBaseUrl").value = wsBaseUrl;
-        });
-      }
-
-      function setWsBaseUrl() {
-        const input = document.getElementById("wsBaseUrl").value.trim();
-        if (!input) {
-          alert("Please enter a valid WebSocket URL");
-          return;
-        }
-        wsBaseUrl = input;
-        localStorage.setItem("wsBaseUrl", wsBaseUrl);
-        alert("WebSocket URL set!");
-      }
-
       let userWs = null;
       let adminWs = null;
 
@@ -341,11 +301,9 @@
         }
 
         try {
-          if (!wsBaseUrl) {
-            alert("Please set the WebSocket URL first.");
-            return;
-          }
-          userWs = new WebSocket(`${wsBaseUrl}/api/v1/ws/user?token=${token}`);
+          userWs = new WebSocket(
+            `wss://aut-bank-server.up.railway.app/api/v1/ws/user?token=${token}`
+          );
 
           userWs.onerror = (error) => {
             console.error("WebSocket Error:", error);
@@ -404,17 +362,10 @@
         }
 
         try {
-          if (!wsBaseUrl) {
-            alert("Please set the WebSocket URL first.");
-            return;
-          }
-          if (!wsBaseUrl) {
-            alert("Please set the WebSocket URL first.");
-            return;
-          }
-          adminWs = new WebSocket(
-            `${wsBaseUrl}/api/v1/ws/admin?token=${token}`
-          );
+           userWs = new WebSocket(
+  `wss://aut-bank-server.up.railway.app/api/v1/ws/user?token=${token}`
+);
+
 
           adminWs.onerror = (error) => {
             console.error("WebSocket Error:", error);
