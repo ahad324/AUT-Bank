@@ -1,13 +1,12 @@
 import re
-from pydantic import BaseModel, EmailStr, constr, field_validator, ConfigDict
-from datetime import date, datetime
+from pydantic import BaseModel, EmailStr, constr, field_validator, ConfigDict, date, datetime
 from typing import Optional
 from enum import Enum
 
 from decimal import Decimal
 
 
-class UserCreate(BaseModel):
+class register(BaseModel):
     Username: constr(min_length=3, max_length=50)  # type: ignore
     FirstName: constr(max_length=50) = ""  # type: ignore
     LastName: constr(max_length=50) = ""  # type: ignore
@@ -22,7 +21,7 @@ class UserCreate(BaseModel):
     Password: constr(min_length=8, max_length=255)  # type: ignore
     IsActive: bool = False
     AccountType: str
-    DateOfBirth: date
+    DOB: date
 
     @field_validator("AccountType")
     def validate_account_type(cls, v):
@@ -89,7 +88,7 @@ class UserPasswordUpdate(BaseModel):
     NewPassword: constr(min_length=8, max_length=255)  # type: ignore
 
 
-class UserLogin(BaseModel):
+class login(BaseModel):
     login_id: str  # Can be either email or username
     Password: constr(min_length=8, max_length=255)  # type: ignore
 
