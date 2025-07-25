@@ -36,7 +36,7 @@ The **AUT Bank API**, developed by **AbdulAhad**, serves as the backbone for a b
   - Export transactions to CSV for reporting.
 - **Card Management** 💳:
   - Create, update, block, and unblock user cards.
-  - Card status tracking (Active, Inactive, Blocked).
+  - Card status tracking (Approved, Inactive, Blocked).
 - **Loan Management** 📈:
   - Apply for loans, approve/reject loans, and make loan payments.
   - View loan types and payment history.
