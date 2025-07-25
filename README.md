@@ -139,7 +139,7 @@ Follow these steps to set up the AUT Bank API locally:
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-repo/aut-bank-api.git
+   git clone https://github.com/ahad324/AUT-Bank.git
    cd aut-bank-api
    ```
 
